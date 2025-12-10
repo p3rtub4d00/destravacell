@@ -9,10 +9,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (menuToggle) {
         menuToggle.addEventListener('click', () => {
-            // Alterna a classe 'active'
             navLinks.classList.toggle('active');
             
-            // Troca ícone
             const icon = menuToggle.querySelector('i');
             if(navLinks.classList.contains('active')){
                 icon.classList.remove('fa-bars');
@@ -22,7 +20,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 icon.classList.add('fa-bars');
             }
 
-            // Animação dos links
             navItems.forEach((link, index) => {
                 if (link.style.animation) {
                     link.style.animation = '';
@@ -86,7 +83,9 @@ document.addEventListener('DOMContentLoaded', () => {
         { text: "Desbloqueou Conta Google", icon: "fa-unlock" },
         { text: "Removeu MDM/PayJoy", icon: "fa-file-invoice-dollar" },
         { text: "Vendeu Samsung S22", icon: "fa-hand-holding-usd" },
-        { text: "Solicitou orçamento", icon: "fa-comments" }
+        { text: "Solicitou orçamento", icon: "fa-comments" },
+        { text: "Vendeu iPhone 11", icon: "fa-mobile-alt" },
+        { text: "Desbloqueou Xiaomi Note 12", icon: "fa-shield-alt" }
     ];
     const cities = ["Porto Velho", "Ji-Paraná", "Ariquemes", "Cacoal", "Vilhena", "Online"];
 
@@ -119,4 +118,25 @@ document.addEventListener('DOMContentLoaded', () => {
             showNotification();
         }, Math.floor(Math.random() * (15000 - 8000 + 1) + 8000));
     }, 3000);
+
+    // ===============================================
+    // 5. LÓGICA DO FAQ (ACORDEÃO)
+    // ===============================================
+    const faqQuestions = document.querySelectorAll('.faq-question');
+
+    faqQuestions.forEach(question => {
+        question.addEventListener('click', () => {
+            const item = question.parentElement;
+            
+            // Fecha os outros (Opcional, se quiser que fique só um aberto)
+            document.querySelectorAll('.faq-item').forEach(otherItem => {
+                if(otherItem !== item) {
+                    otherItem.classList.remove('active');
+                }
+            });
+
+            // Alterna o atual
+            item.classList.toggle('active');
+        });
+    });
 });
