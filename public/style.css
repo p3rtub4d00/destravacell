@@ -2,47 +2,43 @@
    RESET E VARIÁVEIS GLOBAIS
    ========================================= */
 :root {
-    --bg-color: #0f0f0f;       /* Fundo quase preto */
-    --card-bg: #1a1a1a;        /* Fundo dos cards */
-    --primary-color: #00ff88;  /* Verde Neon (Destaque Principal) */
-    --secondary-color: #00d4ff;/* Azul Neon (Destaque Secundário) */
-    --text-color: #ffffff;     /* Texto Branco */
-    --text-muted: #b3b3b3;     /* Texto Cinza */
+    --bg-color: #0f0f0f;
+    --card-bg: #1a1a1a;
+    --primary-color: #00ff88;  /* Verde Neon */
+    --secondary-color: #00d4ff;/* Azul Neon */
+    --text-color: #ffffff;
+    --text-muted: #b3b3b3;
     --font-main: 'Poppins', sans-serif;
 }
 
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-}
+* { margin: 0; padding: 0; box-sizing: border-box; }
 
 body {
     background-color: var(--bg-color);
     color: var(--text-color);
     font-family: var(--font-main);
     line-height: 1.6;
-    overflow-x: hidden; /* Evita rolagem lateral indesejada */
+    overflow-x: hidden;
 }
 
 a { text-decoration: none; color: inherit; }
 ul { list-style: none; }
 
 /* =========================================
-   NAVBAR (Menu Superior)
+   NAVBAR
    ========================================= */
 .navbar {
     display: flex;
     justify-content: space-between;
     align-items: center;
     padding: 20px 5%;
-    background: rgba(15, 15, 15, 0.95); /* Fundo translúcido */
+    background: rgba(15, 15, 15, 0.95);
     position: fixed;
     width: 100%;
     top: 0;
     z-index: 1000;
     border-bottom: 1px solid #333;
-    backdrop-filter: blur(10px); /* Efeito de desfoque atrás do menu */
+    backdrop-filter: blur(10px);
 }
 
 .logo {
@@ -58,7 +54,6 @@ ul { list-style: none; }
 .nav-links li a { font-size: 0.9rem; transition: 0.3s; }
 .nav-links li a:hover { color: var(--primary-color); }
 
-/* Botão de Contato no Menu */
 .btn-nav {
     border: 1px solid var(--primary-color);
     padding: 8px 20px;
@@ -74,7 +69,7 @@ ul { list-style: none; }
 }
 
 /* =========================================
-   HERO SECTION (Topo com Imagem de Fundo)
+   HERO SECTION (Fundo com Imagem)
    ========================================= */
 .hero {
     height: 100vh;
@@ -86,19 +81,16 @@ ul { list-style: none; }
     position: relative;
     padding-top: 80px;
 
-    /* --- CONFIGURAÇÃO DA IMAGEM DE FUNDO --- */
-    /* O gradiente rgba(0,0,0,0.85) cria a camada escura por cima da foto */
-    /* Substitua 'fundo-hero.jpg' pelo nome da sua imagem gerada */
+    /* Imagem de fundo com camada escura */
     background: linear-gradient(rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.85)), url('fundo-hero.jpg');
-    
-    background-size: cover;      /* Cobre toda a tela */
-    background-position: center; /* Centraliza a imagem */
+    background-size: cover;
+    background-position: center;
     background-repeat: no-repeat;
-    background-attachment: fixed; /* Efeito parallax (opcional) */
+    background-attachment: fixed;
 }
 
 .hero-content {
-    z-index: 2; /* Garante que o texto fique acima do fundo */
+    z-index: 2;
     max-width: 800px;
 }
 
@@ -117,12 +109,11 @@ ul { list-style: none; }
 
 .hero p {
     font-size: 1.1rem;
-    color: var(--text-muted); /* Cinza claro para leitura */
+    color: var(--text-muted);
     max-width: 600px;
     margin: 0 auto 40px;
 }
 
-/* Botões de Ação (CTA) */
 .cta-buttons {
     display: flex;
     gap: 15px;
@@ -147,7 +138,7 @@ ul { list-style: none; }
 
 .btn-primary:hover {
     transform: translateY(-3px);
-    box-shadow: 0 0 25px rgba(0, 255, 136, 0.5); /* Brilho verde neon */
+    box-shadow: 0 0 25px rgba(0, 255, 136, 0.5);
 }
 
 .btn-secondary {
@@ -166,13 +157,9 @@ ul { list-style: none; }
 }
 
 /* =========================================
-   SERVIÇOS (Grid de Cards)
+   SERVIÇOS
    ========================================= */
-.services {
-    padding: 100px 5%;
-    background: var(--bg-color);
-}
-
+.services { padding: 100px 5%; background: var(--bg-color); }
 .container { max-width: 1200px; margin: 0 auto; }
 
 .section-title {
@@ -212,7 +199,6 @@ ul { list-style: none; }
     overflow: hidden;
 }
 
-/* Efeito Hover no Card */
 .card:hover {
     border-color: var(--secondary-color);
     transform: translateY(-10px);
@@ -221,13 +207,13 @@ ul { list-style: none; }
 
 .icon-box {
     font-size: 2.5rem;
-    color: var(--primary-color); /* Ícone verde */
+    color: var(--primary-color);
     margin-bottom: 20px;
     transition: 0.3s;
 }
 
 .card:hover .icon-box {
-    color: var(--secondary-color); /* Muda para azul ao passar o mouse */
+    color: var(--secondary-color);
     transform: scale(1.1);
 }
 
@@ -235,7 +221,7 @@ ul { list-style: none; }
 .card p { color: var(--text-muted); font-size: 0.9rem; }
 
 /* =========================================
-   SEÇÃO DE VENDA (Compra de Aparelhos)
+   COMPRA DE APARELHOS
    ========================================= */
 .buy-phone {
     background: linear-gradient(135deg, #111, #1a1a1a);
@@ -252,20 +238,15 @@ ul { list-style: none; }
     gap: 50px;
 }
 
-.buy-text h2 {
-    font-size: 2.2rem;
-    margin-bottom: 20px;
-}
+.buy-text h2 { font-size: 2.2rem; margin-bottom: 20px; }
 
 .buy-list { margin-bottom: 40px; }
-
 .buy-list li {
     margin-bottom: 15px;
     font-size: 1.1rem;
     display: flex;
     align-items: center;
 }
-
 .buy-list i {
     color: var(--primary-color);
     margin-right: 15px;
@@ -275,7 +256,7 @@ ul { list-style: none; }
 .buy-icon {
     font-size: 10rem;
     color: #222;
-    text-shadow: 0 0 60px rgba(0, 255, 136, 0.15); /* Sombra suave verde */
+    text-shadow: 0 0 60px rgba(0, 255, 136, 0.15);
     animation: float 3s ease-in-out infinite;
 }
 
@@ -285,11 +266,7 @@ ul { list-style: none; }
     100% { transform: translateY(0px); }
 }
 
-/* Animação de Pulso no Botão */
-.pulsing {
-    animation: pulse-green 2s infinite;
-}
-
+.pulsing { animation: pulse-green 2s infinite; }
 @keyframes pulse-green {
     0% { box-shadow: 0 0 0 0 rgba(0, 255, 136, 0.7); }
     70% { box-shadow: 0 0 0 15px rgba(0, 255, 136, 0); }
@@ -297,19 +274,13 @@ ul { list-style: none; }
 }
 
 /* =========================================
-   FOOTER (Rodapé)
+   FOOTER
    ========================================= */
 footer {
     padding: 60px 20px;
     text-align: center;
     background: #050505;
     border-top: 1px solid #222;
-}
-
-.footer-content {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
 }
 
 .footer-logo {
@@ -326,47 +297,11 @@ footer {
     margin: 0 15px;
     transition: 0.3s;
 }
-
-.socials a:hover {
-    color: var(--primary-color);
-    transform: translateY(-3px);
-}
-
+.socials a:hover { color: var(--primary-color); transform: translateY(-3px); }
 .copyright { color: #444; font-size: 0.8rem; }
 
 /* =========================================
-   RESPONSIVO (Mobile)
-   ========================================= */
-.menu-toggle { display: none; font-size: 1.5rem; cursor: pointer; color: #fff; }
-
-@media (max-width: 768px) {
-    .navbar { padding: 15px 20px; }
-    
-    /* Esconde links no mobile por enquanto para simplificar */
-    .nav-links {
-        display: none; 
-        /* Para um menu completo mobile seria necessário JS extra */
-    }
-    
-    .menu-toggle { display: block; } /* Ícone de hambúrguer */
-
-    .hero h1 { font-size: 2rem; }
-    
-    .buy-container {
-        flex-direction: column;
-        text-align: center;
-    }
-    
-    .buy-list li {
-        justify-content: center;
-    }
-    
-    .buy-icon { display: none; } /* Esconde o ícone grande no mobile */
-    
-    .card { padding: 30px 20px; }
-}
-/* =========================================
-   NOTIFICAÇÕES AUTOMÁTICAS (Social Proof)
+   NOTIFICAÇÕES (Prova Social)
    ========================================= */
 #notification-container {
     position: fixed;
@@ -377,7 +312,7 @@ footer {
 
 .notification-toast {
     background: rgba(20, 20, 20, 0.95);
-    border-left: 4px solid var(--primary-color); /* Borda Verde Neon */
+    border-left: 4px solid var(--primary-color);
     padding: 15px 20px;
     margin-top: 10px;
     border-radius: 4px;
@@ -386,38 +321,65 @@ footer {
     align-items: center;
     gap: 15px;
     min-width: 300px;
-    transform: translateX(-100%); /* Começa escondido na esquerda */
+    transform: translateX(-100%);
     animation: slideIn 0.5s forwards, fadeOut 0.5s 4.5s forwards;
     backdrop-filter: blur(5px);
 }
 
-.toast-icon {
-    font-size: 1.5rem;
-    color: var(--primary-color);
-}
+.toast-icon { font-size: 1.5rem; color: var(--primary-color); }
+.toast-content h4 { font-size: 0.9rem; color: #fff; margin-bottom: 2px; }
+.toast-content p { font-size: 0.8rem; color: #ccc; }
+.toast-time { font-size: 0.7rem; color: var(--text-muted); margin-left: auto; }
 
-.toast-content h4 {
-    font-size: 0.9rem;
-    color: #fff;
-    margin-bottom: 2px;
-}
+@keyframes slideIn { to { transform: translateX(0); } }
+@keyframes fadeOut { to { opacity: 0; transform: translateY(10px); } }
 
-.toast-content p {
-    font-size: 0.8rem;
-    color: #ccc;
-}
+/* =========================================
+   RESPONSIVO E MENU MOBILE
+   ========================================= */
+.menu-toggle { display: none; }
 
-.toast-time {
-    font-size: 0.7rem;
-    color: var(--text-muted);
-    margin-left: auto;
-}
+@media (max-width: 768px) {
+    .navbar { padding: 15px 20px; background: rgba(15, 15, 15, 1); }
 
-/* Animações */
-@keyframes slideIn {
-    to { transform: translateX(0); }
-}
+    .menu-toggle {
+        display: block;
+        font-size: 1.8rem;
+        cursor: pointer;
+        color: #fff;
+        z-index: 1001;
+    }
 
-@keyframes fadeOut {
-    to { opacity: 0; transform: translateY(10px); }
+    .nav-links {
+        position: absolute;
+        right: 0;
+        top: 70px;
+        height: calc(100vh - 70px);
+        background: #111;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: space-around;
+        width: 100%;
+        transform: translateX(100%);
+        transition: transform 0.3s ease-in-out;
+        border-top: 1px solid #333;
+    }
+
+    .nav-links.active { transform: translateX(0%); }
+    .nav-links li { opacity: 0; }
+
+    @keyframes navLinkFade {
+        from { opacity: 0; transform: translateX(50px); }
+        to { opacity: 1; transform: translateX(0); }
+    }
+
+    .hero h1 { font-size: 2.2rem; }
+    .hero p { font-size: 1rem; padding: 0 10px; }
+    
+    .buy-container { flex-direction: column; text-align: center; }
+    .buy-icon { display: none; }
+    
+    .cta-buttons { flex-direction: column; width: 100%; }
+    .btn-primary, .btn-secondary { width: 100%; justify-content: center; }
 }
