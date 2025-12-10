@@ -1,0 +1,15 @@
+{
+  "name": "destrava-cell",
+  "version": "1.0.0",
+  "description": "Site institucional Destrava Cell",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}
