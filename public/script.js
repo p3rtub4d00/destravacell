@@ -11,7 +11,6 @@ document.addEventListener('DOMContentLoaded', () => {
         canvas.width = canvas.offsetWidth * ratio;
         canvas.height = canvas.offsetHeight * ratio;
         canvas.getContext("2d").scale(ratio, ratio);
-        // Nota: limpar ao redimensionar é padrão, mas pode apagar se girar a tela
     }
     window.addEventListener("resize", resizeCanvas);
     resizeCanvas();
@@ -32,7 +31,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // 1. Coletar Dados
         const dados = {
-            id: Date.now(), // ID único baseado no tempo
+            id: Date.now(),
             data: new Date().toLocaleDateString('pt-BR'),
             hora: new Date().toLocaleTimeString('pt-BR'),
             nome: document.getElementById('nome').value || "Não informado",
@@ -43,19 +42,22 @@ document.addEventListener('DOMContentLoaded', () => {
             imei: document.getElementById('imei').value || "",
             valor: document.getElementById('valor').value || "0,00",
             estado: document.getElementById('estado').value,
-            assinatura: signaturePad.toDataURL() // Salva a imagem da assinatura
+            assinatura: signaturePad.toDataURL()
         };
 
         // 2. Gerar o Arquivo PDF
         criarArquivoPDF(dados);
 
-        // 3. Salvar no Histórico (LocalStorage)
+        // 3. Salvar no Histórico e Limpar
         salvarNoHistorico(dados);
+        alert("Recibo gerado com sucesso! Verifique seus downloads.");
         
-        // 4. Limpar formulário para o próximo
-        alert("Recibo gerado e salvo com sucesso!");
+        // Limpeza
         signaturePad.clear();
         document.getElementById('nome').value = "";
+        document.getElementById('cpf').value = "";
+        document.getElementById('rg').value = "";
+        document.getElementById('endereco').value = "";
         document.getElementById('modelo').value = "";
         document.getElementById('imei').value = "";
         document.getElementById('valor').value = "";
@@ -65,6 +67,9 @@ document.addEventListener('DOMContentLoaded', () => {
     window.criarArquivoPDF = (d) => {
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF();
+
+        // Cor padrão: Preto
+        doc.setTextColor(0, 0, 0);
 
         // Cabeçalho
         doc.setFont("helvetica", "bold");
@@ -114,7 +119,7 @@ document.addEventListener('DOMContentLoaded', () => {
         doc.text(`VALOR PAGO: R$ ${d.valor}`, 20, y);
         y += 15;
 
-        // Declarações Legais (Padrão)
+        // Termos de Responsabilidade
         doc.setFontSize(9);
         doc.text("DECLARAÇÃO DE RESPONSABILIDADE:", 20, y);
         y += 6;
@@ -132,53 +137,50 @@ document.addEventListener('DOMContentLoaded', () => {
         y += 10;
         doc.text(`Porto Velho - RO, ${d.data} às ${d.hora}`, 20, y);
 
-        // Assinatura
-        y += 25; 
+        // Assinatura (Posição Y = 230, sobra espaço para o rodapé)
+        y = 230; 
         if(d.assinatura) {
             doc.addImage(d.assinatura, 'PNG', 20, y - 20, 50, 25);
         }
         doc.line(20, y, 90, y);
         doc.text("Assinatura do Vendedor", 20, y + 5);
 
-        // === AVISO LEGAL (RODAPÉ) ===
-        y = 270; // Posição no final da folha A4
-        doc.setFontSize(7);
-        doc.setTextColor(100); // Cinza escuro
+        // === AVISO LEGAL NO RODAPÉ (AGORA GARANTIDO) ===
+        // Texto exato que você pediu
+        const avisoLegal = "Aviso Legal: A Destrava Cell repudia qualquer atividade ilícita. Realizamos consulta prévia de IMEI em todos os aparelhos. Não compramos e não desbloqueamos aparelhos com restrição de roubo ou furto (Blacklist). Nossos serviços destinam-se a proprietários legítimos que perderam acesso às suas contas ou desejam quitar débitos contratuais.";
         
-        const avisoTexto = "Aviso Legal: A Destrava Cell repudia qualquer atividade ilícita. Realizamos consulta prévia de IMEI em todos os aparelhos. Não compramos e não desbloqueamos aparelhos com restrição de roubo ou furto (Blacklist). Nossos serviços destinam-se a proprietários legítimos que perderam acesso às suas contas ou desejam quitar débitos contratuais.";
+        // Configuração do Rodapé
+        doc.setFontSize(8); // Tamanho pequeno para caber tudo
+        doc.setFont("helvetica", "normal"); // Fonte normal
+        doc.setTextColor(0, 0, 0); // Preto absoluto (0,0,0)
         
-        // Quebra o texto automaticamente para não sair da margem (largura max 170)
-        doc.text(avisoTexto, 20, y, { maxWidth: 170, align: "justify" });
+        // Posição fixa no final da página A4 (Y = 275)
+        // maxWidth 170 garante que quebre a linha e não saia da margem
+        doc.text(avisoLegal, 20, 275, {
+            maxWidth: 170,
+            align: "justify"
+        });
 
         // Salvar Arquivo
         const nomeArquivo = `Recibo_${d.nome.split(' ')[0]}_${d.id}.pdf`;
         doc.save(nomeArquivo);
     };
 
-    // === SISTEMA DE HISTÓRICO (LOCALSTORAGE) ===
-    
+    // === SISTEMA DE HISTÓRICO ===
     function salvarNoHistorico(dados) {
-        // Pega o histórico atual ou cria lista vazia
         let historico = JSON.parse(localStorage.getItem('destrava_recibos')) || [];
-        
-        // Adiciona o novo no começo da lista
         historico.unshift(dados);
-        
-        // Salva de volta
         localStorage.setItem('destrava_recibos', JSON.stringify(historico));
-        
-        // Atualiza a tabela
         loadHistory();
     }
 
     function loadHistory() {
         const tbody = document.querySelector('#history-table tbody');
-        tbody.innerHTML = ""; // Limpa tabela
-
+        tbody.innerHTML = "";
         let historico = JSON.parse(localStorage.getItem('destrava_recibos')) || [];
-
+        
         if (historico.length === 0) {
-            tbody.innerHTML = "<tr><td colspan='5' style='text-align:center; padding:20px;'>Nenhum registro encontrado.</td></tr>";
+            tbody.innerHTML = "<tr><td colspan='5' style='text-align:center; padding:20px;'>Nenhum registro.</td></tr>";
             return;
         }
 
@@ -198,18 +200,14 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Função para gerar PDF de novo a partir do histórico
     window.reimprimir = (id) => {
         let historico = JSON.parse(localStorage.getItem('destrava_recibos')) || [];
         const item = historico.find(i => i.id === id);
-        if (item) {
-            criarArquivoPDF(item);
-        }
+        if (item) criarArquivoPDF(item);
     };
 
-    // Função para apagar um registro
     window.deletar = (id) => {
-        if(confirm("Tem certeza que deseja apagar este registro?")) {
+        if(confirm("Apagar registro?")) {
             let historico = JSON.parse(localStorage.getItem('destrava_recibos')) || [];
             historico = historico.filter(i => i.id !== id);
             localStorage.setItem('destrava_recibos', JSON.stringify(historico));
