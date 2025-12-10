@@ -365,3 +365,59 @@ footer {
     
     .card { padding: 30px 20px; }
 }
+/* =========================================
+   NOTIFICAÇÕES AUTOMÁTICAS (Social Proof)
+   ========================================= */
+#notification-container {
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    z-index: 9999;
+}
+
+.notification-toast {
+    background: rgba(20, 20, 20, 0.95);
+    border-left: 4px solid var(--primary-color); /* Borda Verde Neon */
+    padding: 15px 20px;
+    margin-top: 10px;
+    border-radius: 4px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    min-width: 300px;
+    transform: translateX(-100%); /* Começa escondido na esquerda */
+    animation: slideIn 0.5s forwards, fadeOut 0.5s 4.5s forwards;
+    backdrop-filter: blur(5px);
+}
+
+.toast-icon {
+    font-size: 1.5rem;
+    color: var(--primary-color);
+}
+
+.toast-content h4 {
+    font-size: 0.9rem;
+    color: #fff;
+    margin-bottom: 2px;
+}
+
+.toast-content p {
+    font-size: 0.8rem;
+    color: #ccc;
+}
+
+.toast-time {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    margin-left: auto;
+}
+
+/* Animações */
+@keyframes slideIn {
+    to { transform: translateX(0); }
+}
+
+@keyframes fadeOut {
+    to { opacity: 0; transform: translateY(10px); }
+}
