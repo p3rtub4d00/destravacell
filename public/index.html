@@ -13,13 +13,10 @@
 
     <nav class="navbar">
         <div class="logo">Destrava <span class="highlight">Cell</span></div>
-        
-        <div class="menu-toggle">
-            <i class="fas fa-bars"></i>
-        </div>
-
+        <div class="menu-toggle"><i class="fas fa-bars"></i></div>
         <ul class="nav-links">
             <li><a href="#servicos">Serviços</a></li>
+            <li><a href="#reviews">Clientes</a></li>
             <li><a href="#venda">Venda seu Celular</a></li>
             <li><a href="#faq">Dúvidas</a></li>
             <li><a href="https://wa.me/5569999083361" target="_blank" class="btn-nav">Contato</a></li>
@@ -30,9 +27,17 @@
         <div class="hero-content">
             <h1>Seu Celular <span class="highlight-text">Livre</span> Novamente</h1>
             <p>Especialistas em desbloqueio de MDM, PayJoy, Conta Google e Xiaomi. Segurança, rapidez e o melhor preço do mercado.</p>
+            
+            <div class="server-status-container">
+                <div class="status-item"><span class="status-dot online"></span> Samsung: <strong>ON</strong></div>
+                <div class="status-item"><span class="status-dot online"></span> Motorola: <strong>ON</strong></div>
+                <div class="status-item"><span class="status-dot warning"></span> Xiaomi: <strong>Instável</strong></div>
+                <div class="status-item"><span class="status-dot online"></span> iPhone: <strong>ON</strong></div>
+            </div>
+
             <div class="cta-buttons">
-                <a href="https://wa.me/5569999083361?text=Olá, vim pelo site e preciso de um orçamento de desbloqueio." target="_blank" class="btn-primary"><i class="fab fa-whatsapp"></i> Fazer Orçamento Grátis</a>
-                <a href="#venda" class="btn-secondary">Quero Vender um Aparelho</a>
+                <a href="https://wa.me/5569999083361?text=Olá, vim pelo site e preciso de um orçamento." target="_blank" class="btn-primary"><i class="fab fa-whatsapp"></i> Orçamento Grátis</a>
+                <a href="#venda" class="btn-secondary">Vender Aparelho</a>
             </div>
         </div>
     </header>
@@ -65,13 +70,45 @@
         </div>
     </section>
 
+    <section id="reviews" class="testimonials">
+        <div class="container">
+            <h2 class="section-title">Quem já desbloqueou</h2>
+            <div class="reviews-grid">
+                <div class="review-card">
+                    <div class="stars">★★★★★</div>
+                    <p>"Achei que tinha perdido meu S22 Ultra. O pessoal da Destrava Cell resolveu em 40 minutos. Recomendo!"</p>
+                    <div class="client-info">
+                        <img src="https://randomuser.me/api/portraits/men/32.jpg" alt="Cliente">
+                        <span>Roberto F. <small>Porto Velho</small></span>
+                    </div>
+                </div>
+                <div class="review-card">
+                    <div class="stars">★★★★★</div>
+                    <p>"Vendi meu celular quebrado pra eles, pagaram no pix na hora sem enrolação. Muito honestos."</p>
+                    <div class="client-info">
+                        <img src="https://randomuser.me/api/portraits/women/44.jpg" alt="Cliente">
+                        <span>Carla M. <small>Ji-Paraná</small></span>
+                    </div>
+                </div>
+                <div class="review-card">
+                    <div class="stars">★★★★★</div>
+                    <p>"Melhor preço que achei pra tirar conta Google. O atendimento pelo Zap foi nota 10."</p>
+                    <div class="client-info">
+                        <img src="https://randomuser.me/api/portraits/men/85.jpg" alt="Cliente">
+                        <span>Anderson S. <small>Ariquemes</small></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
     <section id="venda" class="buy-phone">
         <div class="container buy-container">
             <div class="buy-text">
                 <h2>Venda seu Celular <span class="highlight">Parado</span></h2>
                 <p>Compramos aparelhos com tela trincada, bloqueados ou usados.</p>
                 <ul class="buy-list">
-                    <li><i class="fas fa-check-circle"></i> Pagamento no Pix na hora</li>
+                    <li><i class="fas fa-check-circle"></i> Pagamento via Pix na hora</li>
                     <li><i class="fas fa-check-circle"></i> Avaliação rápida pelo WhatsApp</li>
                 </ul>
                 <a href="https://wa.me/5569999083361?text=Tenho um celular para vender." target="_blank" class="btn-primary pulsing">Avaliar Agora</a>
@@ -90,6 +127,10 @@
                 <div class="faq-question"><h3>Desbloqueia roubado?</h3><i class="fas fa-chevron-down"></i></div>
                 <div class="faq-answer"><p>NÃO. Consultamos o IMEI antes de qualquer serviço.</p></div>
             </div>
+             <div class="faq-item">
+                <div class="faq-question"><h3>O desbloqueio é definitivo?</h3><i class="fas fa-chevron-down"></i></div>
+                <div class="faq-answer"><p>Sim, para a maioria dos serviços você pode formatar normalmente.</p></div>
+            </div>
         </div>
     </section>
 
@@ -100,6 +141,9 @@
                 <a href="#"><i class="fab fa-instagram"></i></a>
                 <a href="#"><i class="fab fa-facebook"></i></a>
             </div>
+            <div class="legal-notice" style="margin: 20px 0; max-width: 600px; font-size: 0.75rem; color: #555; padding: 0 10px;">
+                <p><strong>Aviso Legal:</strong> A Destrava Cell repudia qualquer atividade ilícita. Realizamos consulta prévia de IMEI em todos os aparelhos. Não compramos e não desbloqueamos aparelhos com restrição de roubo ou furto (Blacklist).</p>
+            </div>
             <p class="copyright">
                 &copy; 2025 Destrava Cell. Uma empresa do grupo <strong>NEXUS DIGITAL</strong>.<br>
                 Todos os direitos reservados.
@@ -108,7 +152,6 @@
     </footer>
 
     <div id="notification-container"></div>
-
     <a href="https://wa.me/5569999083361" class="float-whatsapp" target="_blank"><i class="fab fa-whatsapp"></i></a>
 
     <script src="script.js"></script>
