@@ -9,7 +9,19 @@
     <link rel="stylesheet" href="style.css">
     <style>
         body { background: #0f0f0f; padding-bottom: 50px; }
-        .admin-container { max-width: 800px; margin: 40px auto; padding: 20px; }
+        .admin-container { max-width: 800px; margin: 20px auto; padding: 20px; }
+        
+        /* MENU DE ABAS */
+        .tabs { display: flex; gap: 10px; margin-bottom: 20px; }
+        .tab-btn {
+            flex: 1; padding: 15px; background: #222; border: 1px solid #444; color: #888;
+            border-radius: 8px; cursor: pointer; font-weight: bold; text-align: center; transition: 0.3s;
+        }
+        .tab-btn.active { background: var(--primary-color); color: #000; border-color: var(--primary-color); }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        /* Estilos do Formulário (Mantidos) */
         .form-card { background: #1a1a1a; padding: 30px; border-radius: 15px; border: 1px solid #333; margin-bottom: 30px; }
         .form-group { margin-bottom: 20px; }
         label { display: block; color: #fff; margin-bottom: 8px; font-size: 0.9rem; }
@@ -18,71 +30,109 @@
         canvas { display: block; width: 100%; height: 200px; cursor: crosshair; }
         .btn-clear { background: #ff4444; color: #fff; border: none; padding: 5px 15px; border-radius: 4px; margin-top: 5px; cursor: pointer; }
         .btn-generate { width: 100%; background: var(--primary-color); color: #000; font-weight: bold; padding: 15px; border: none; border-radius: 50px; cursor: pointer; margin-top: 30px; }
-        
-        /* Oculta o gerador de QR Code da tela (ele só aparece no PDF) */
         #qrcode-container { display: none; }
 
-        .history-section { margin-top: 40px; border-top: 1px solid #333; padding-top: 20px; }
-        table { width: 100%; border-collapse: collapse; color: #ccc; font-size: 0.9rem; }
-        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #333; }
-        th { background: #222; color: var(--primary-color); }
-        .btn-reprint { background: transparent; border: 1px solid var(--primary-color); color: var(--primary-color); padding: 5px; cursor: pointer; }
-        .btn-delete { color: #ff4444; background: transparent; border: none; cursor: pointer; margin-left: 10px; }
+        /* ESTILOS DA BUSCA DE PREÇOS */
+        .search-box { position: relative; margin-bottom: 20px; }
+        .search-box input { padding-left: 45px; font-size: 1.1rem; border-color: var(--primary-color); }
+        .search-box i { position: absolute; left: 15px; top: 50%; transform: translateY(-50%); color: var(--primary-color); font-size: 1.2rem; }
+        
+        .price-card {
+            background: #222; border-left: 4px solid var(--primary-color); padding: 20px;
+            border-radius: 8px; margin-bottom: 15px; animation: fadeIn 0.3s ease;
+        }
+        .model-name { font-size: 1.2rem; font-weight: bold; color: #fff; margin-bottom: 10px; display: flex; justify-content: space-between; }
+        .brand-tag { font-size: 0.7rem; background: #333; padding: 2px 8px; border-radius: 4px; color: #aaa; text-transform: uppercase; }
+        
+        .price-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+        .price-item { background: #151515; padding: 10px; border-radius: 6px; }
+        .price-label { font-size: 0.75rem; color: #888; display: block; margin-bottom: 3px; }
+        .price-value { font-size: 1rem; font-weight: bold; color: #fff; }
+        .price-value.green { color: var(--primary-color); }
+        .price-value.blue { color: var(--secondary-color); }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
 <body>
     <div class="admin-container">
-        <div style="text-align:center; margin-bottom:30px;">
+        <div style="text-align:center; margin-bottom:20px;">
             <h4 style="color:var(--primary-color);">Grupo Nexus Digital</h4>
             <h2 style="color:#fff;">Painel Administrativo</h2>
         </div>
 
-        <div class="form-card">
-            <h4 style="color: var(--primary-color); margin-bottom: 15px;">Novo Recibo de Compra</h4>
-            <div class="form-group"><label>Nome</label><input type="text" id="nome"></div>
-            <div style="display:flex; gap:10px;">
-                <div class="form-group" style="flex:1;"><label>CPF</label><input type="text" id="cpf"></div>
-                <div class="form-group" style="flex:1;"><label>RG</label><input type="text" id="rg"></div>
-            </div>
-            <div class="form-group"><label>Endereço</label><input type="text" id="endereco"></div>
-            <hr style="border-color:#333; margin:20px 0;">
-            <div class="form-group"><label>Modelo</label><input type="text" id="modelo"></div>
-            <div class="form-group"><label>IMEI</label><input type="text" id="imei"></div>
-            <div style="display:flex; gap:10px;">
-                <div class="form-group" style="flex:1;"><label>Valor (R$)</label><input type="number" id="valor"></div>
-                <div class="form-group" style="flex:1;">
-                    <label>Estado</label>
-                    <select id="estado">
-                        <option value="Funcionando">Funcionando</option>
-                        <option value="Bloq. Google">Bloq. Google</option>
-                        <option value="Bloq. MDM">Bloq. MDM</option>
-                        <option value="Tela Quebrada">Tela Quebrada</option>
-                    </select>
-                </div>
-            </div>
-            <h4 style="color:var(--primary-color); margin-top:20px;">Assinatura</h4>
-            <div class="signature-wrapper"><canvas id="signature-pad"></canvas></div>
-            <button class="btn-clear" id="clear-pad">Limpar</button>
-            <button class="btn-generate" onclick="gerarPDF()"><i class="fas fa-save"></i> Salvar e Baixar PDF</button>
+        <div class="tabs">
+            <div class="tab-btn active" onclick="switchTab('recibo')"><i class="fas fa-file-contract"></i> Gerar Recibo</div>
+            <div class="tab-btn" onclick="switchTab('precos')"><i class="fas fa-search-dollar"></i> Consultar Preços</div>
         </div>
 
-        <div id="qrcode-container"></div>
-        <div class="history-section">
-            <h3 style="color:#fff; margin-bottom:15px;">Histórico (Nuvem)</h3>
-            <div style="overflow-x:auto;">
-                <table id="history-table">
-                    <thead><tr><th>Data</th><th>Cliente</th><th>Aparelho</th><th>Valor</th><th>Ações</th></tr></thead>
-                    <tbody></tbody>
-                </table>
+        <div id="tab-recibo" class="tab-content active">
+            <div class="form-card">
+                <h4 style="color: var(--primary-color); margin-bottom: 15px;">Novo Recibo de Compra</h4>
+                <div class="form-group"><label>Nome</label><input type="text" id="nome"></div>
+                <div style="display:flex; gap:10px;">
+                    <div class="form-group" style="flex:1;"><label>CPF</label><input type="text" id="cpf"></div>
+                    <div class="form-group" style="flex:1;"><label>RG</label><input type="text" id="rg"></div>
+                </div>
+                <div class="form-group"><label>Endereço</label><input type="text" id="endereco"></div>
+                <hr style="border-color:#333; margin:20px 0;">
+                <div class="form-group"><label>Modelo</label><input type="text" id="modelo"></div>
+                <div class="form-group"><label>IMEI</label><input type="text" id="imei"></div>
+                <div style="display:flex; gap:10px;">
+                    <div class="form-group" style="flex:1;"><label>Valor (R$)</label><input type="number" id="valor"></div>
+                    <div class="form-group" style="flex:1;">
+                        <label>Estado</label>
+                        <select id="estado">
+                            <option value="Funcionando">Funcionando</option>
+                            <option value="Bloq. Google">Bloq. Google</option>
+                            <option value="Bloq. MDM">Bloq. MDM</option>
+                            <option value="Tela Quebrada">Tela Quebrada</option>
+                        </select>
+                    </div>
+                </div>
+                <h4 style="color:var(--primary-color); margin-top:20px;">Assinatura</h4>
+                <div class="signature-wrapper"><canvas id="signature-pad"></canvas></div>
+                <button class="btn-clear" id="clear-pad">Limpar</button>
+                <button class="btn-generate" onclick="gerarPDF()"><i class="fas fa-save"></i> Salvar e Baixar PDF</button>
+            </div>
+            
+            <div id="qrcode-container"></div>
+
+            <div class="history-section">
+                <h3 style="color:#fff; margin-bottom:15px;">Histórico (Nuvem)</h3>
+                <div style="overflow-x:auto;">
+                    <table id="history-table">
+                        <thead><tr><th>Data</th><th>Cliente</th><th>Modelo</th><th>Valor</th><th>Ações</th></tr></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
             </div>
         </div>
+
+        <div id="tab-precos" class="tab-content">
+            <div class="search-box">
+                <i class="fas fa-search"></i>
+                <input type="text" id="searchInput" placeholder="Digite o modelo (Ex: S22, Note 12)..." onkeyup="filtrarPrecos()">
+            </div>
+            <div id="results-container">
+                </div>
+        </div>
+
     </div>
     
     <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.0.0/dist/signature_pad.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-    
     <script src="admin-script.js"></script>
+    
+    <script>
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            
+            document.getElementById('tab-' + tabName).classList.add('active');
+            event.currentTarget.classList.add('active');
+        }
+    </script>
 </body>
 </html>
