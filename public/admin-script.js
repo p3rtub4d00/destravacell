@@ -1,6 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
     
-    // === 1. LÓGICA DO RECIBO E ASSINATURA (MANTIDA) ===
+    // === 1. LÓGICA DO RECIBO E ASSINATURA ===
     const canvas = document.getElementById('signature-pad');
     const signaturePad = new SignaturePad(canvas, { backgroundColor: 'rgb(255, 255, 255)', penColor: 'rgb(0, 0, 0)' });
 
@@ -14,6 +14,7 @@ document.addEventListener('DOMContentLoaded', () => {
     resizeCanvas();
     document.getElementById('clear-pad').addEventListener('click', () => signaturePad.clear());
 
+    // Carrega histórico ao iniciar
     loadHistory();
 
     window.gerarPDF = async () => {
@@ -38,15 +39,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             const res = await fetch('/api/recibos', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify(dados)
+                method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(dados)
             });
             if(!res.ok) throw new Error("Erro de conexão");
             const salvo = await res.json();
             
             gerarQRCodeEPDF(salvo);
-            alert("✅ Salvo na Nuvem!");
+            alert("✅ Recibo Salvo com Sucesso!");
             signaturePad.clear();
             document.getElementById('nome').value = "";
             document.getElementById('valor').value = "";
@@ -59,12 +58,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const id = dados._id || Date.now();
         const qrData = `NEXUS\nID:${id}\nIMEI:${dados.imei}\n$${dados.valor}`;
         const container = document.getElementById("qrcode-container");
-        container.innerHTML = "";
-        new QRCode(container, { text: qrData, width: 100, height: 100 });
-        setTimeout(() => {
-            const img = container.querySelector('canvas') ? container.querySelector('canvas').toDataURL() : null;
-            criarArquivoPDF(dados, img, id);
-        }, 100);
+        if(container) {
+            container.innerHTML = "";
+            new QRCode(container, { text: qrData, width: 100, height: 100 });
+            setTimeout(() => {
+                const img = container.querySelector('canvas') ? container.querySelector('canvas').toDataURL() : null;
+                criarArquivoPDF(dados, img, id);
+            }, 100);
+        }
     }
 
     window.criarArquivoPDF = (d, qr, id) => {
@@ -83,7 +84,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if(qr) doc.addImage(qr, 'PNG', 170, 10, 30, 30);
 
         let y = 55;
-        // Campos
         const campos = [
             { t: "DADOS DA TRANSAÇÃO", c: [`Data: ${d.dataFormatada}`, `Valor: R$ ${d.valor}`] },
             { t: "VENDEDOR", c: [`Nome: ${d.nome}`, `CPF: ${d.cpf}`, `Endereço: ${d.endereco}`] },
@@ -105,72 +105,192 @@ document.addEventListener('DOMContentLoaded', () => {
         if(d.assinatura) { doc.rect(60, y-5, 90, 30); doc.addImage(d.assinatura, 'PNG', 75, y, 60, 25); }
         y+=30; doc.text("ASSINATURA DO VENDEDOR", 105, y, null, null, "center");
         
-        doc.save(`Recibo_Nexus_${d.nome.split(' ')[0]}.pdf`);
+        const safeName = d.nome ? d.nome.split(' ')[0].replace(/[^a-z0-9]/gi, '') : 'Recibo';
+        doc.save(`Recibo_${safeName}.pdf`);
     };
 
-    // Histórico via API
     async function loadHistory() {
         const tb = document.querySelector('#history-table tbody');
         if(!tb) return;
+        tb.innerHTML = "<tr><td colspan='5' style='text-align:center'>Carregando...</td></tr>";
         try {
             const res = await fetch('/api/recibos');
             const lista = await res.json();
             tb.innerHTML = "";
+            if(lista.length === 0) { tb.innerHTML = "<tr><td colspan='5' style='text-align:center'>Nenhum registro.</td></tr>"; return; }
+            
             lista.forEach(i => {
                 const tr = document.createElement('tr');
-                tr.innerHTML = `<td>${i.dataFormatada}</td><td>${i.nome}</td><td>${i.modelo}</td><td>R$ ${i.valor}</td>
-                <td><button class="btn-delete" onclick="deletar('${i._id}')"><i class="fas fa-trash"></i></button></td>`;
+                const dataShow = i.dataFormatada || "--";
+                tr.innerHTML = `<td>${dataShow}</td><td>${i.nome}</td><td>${i.modelo}</td><td>R$ ${i.valor}</td>
+                <td><button class="btn-reprint" onclick="reimprimir('${i._id}')"><i class="fas fa-print"></i></button>
+                <button class="btn-delete" onclick="deletar('${i._id}')"><i class="fas fa-trash"></i></button></td>`;
                 tb.appendChild(tr);
             });
-        } catch(e) { console.error(e); }
+        } catch(e) { tb.innerHTML = "<tr><td colspan='5'>Erro ao carregar.</td></tr>"; }
     }
+    
+    window.reimprimir = async (id) => {
+        try {
+            const res = await fetch(`/api/recibos/${id}`);
+            const item = await res.json();
+            if(item) gerarQRCodeEPDF(item);
+        } catch(e) { alert("Erro ao recuperar."); }
+    };
     window.deletar = async (id) => {
         if(confirm("Apagar?")) { await fetch(`/api/recibos/${id}`, {method:'DELETE'}); loadHistory(); }
     };
 
-    // === 2. NOVA FUNCIONALIDADE: TABELA DE PREÇOS INTELIGENTE ===
+
+    // === 2. TABELA DE PREÇOS GIGANTE (2020-2025) ===
     
-    // Banco de Dados Local de Preços (Baseado na nossa conversa)
     const bancoPrecos = [
-        // SAMSUNG
-        { marca: "Samsung", modelo: "Galaxy A05 / A06", servico: "150", compra_ok: "250", compra_bloq: "100" },
-        { marca: "Samsung", modelo: "Galaxy A14 / A15 5G", servico: "180", compra_ok: "380", compra_bloq: "200" },
-        { marca: "Samsung", modelo: "Galaxy A34 / A54", servico: "250", compra_ok: "800", compra_bloq: "400" },
-        { marca: "Samsung", modelo: "Galaxy A35 / A55", servico: "280", compra_ok: "900", compra_bloq: "500" },
-        { marca: "Samsung", modelo: "Galaxy S21 FE", servico: "300", compra_ok: "900", compra_bloq: "600" },
-        { marca: "Samsung", modelo: "Galaxy S22 / S23 FE", servico: "350", compra_ok: "1300", compra_bloq: "700" },
-        { marca: "Samsung", modelo: "Galaxy S23 / Ultra", servico: "450", compra_ok: "2200", compra_bloq: "1000" },
-        { marca: "Samsung", modelo: "Galaxy S24 / Ultra", servico: "500", compra_ok: "3500", compra_bloq: "1500" },
+        // === SAMSUNG ===
+        // Linha A (Entrada/Intermediário)
+        { m: "Samsung", mod: "Galaxy A01 Core", serv: "100", blq: "50", ok: "150" },
+        { m: "Samsung", mod: "Galaxy A02 / A02s", serv: "120", blq: "80", ok: "200" },
+        { m: "Samsung", mod: "Galaxy A03 / A03s / Core", serv: "120", blq: "100", ok: "250" },
+        { m: "Samsung", mod: "Galaxy A04 / A04e / A04s", serv: "140", blq: "150", ok: "350" },
+        { m: "Samsung", mod: "Galaxy A05 / A05s", serv: "150", blq: "200", ok: "500" },
+        { m: "Samsung", mod: "Galaxy A06", serv: "160", blq: "250", ok: "600" },
         
-        // MOTOROLA
-        { marca: "Motorola", modelo: "Moto E13 / G04", servico: "130", compra_ok: "200", compra_bloq: "80" },
-        { marca: "Motorola", modelo: "Moto G24 / G34", servico: "160", compra_ok: "400", compra_bloq: "150" },
-        { marca: "Motorola", modelo: "Moto G54 / G84", servico: "200", compra_ok: "650", compra_bloq: "300" },
-        { marca: "Motorola", modelo: "Edge 30 / 40 Neo", servico: "280", compra_ok: "750", compra_bloq: "400" },
+        { m: "Samsung", mod: "Galaxy A11", serv: "120", blq: "100", ok: "250" },
+        { m: "Samsung", mod: "Galaxy A12", serv: "130", blq: "150", ok: "350" },
+        { m: "Samsung", mod: "Galaxy A13", serv: "140", blq: "200", ok: "450" },
+        { m: "Samsung", mod: "Galaxy A14 4G/5G", serv: "160", blq: "250", ok: "600" },
+        { m: "Samsung", mod: "Galaxy A15 5G", serv: "180", blq: "300", ok: "750" },
+        { m: "Samsung", mod: "Galaxy A16 5G", serv: "200", blq: "350", ok: "850" },
+
+        { m: "Samsung", mod: "Galaxy A21s", serv: "130", blq: "150", ok: "400" },
+        { m: "Samsung", mod: "Galaxy A22 4G/5G", serv: "150", blq: "200", ok: "500" },
+        { m: "Samsung", mod: "Galaxy A23", serv: "160", blq: "250", ok: "600" },
+        { m: "Samsung", mod: "Galaxy A24", serv: "180", blq: "300", ok: "700" },
+        { m: "Samsung", mod: "Galaxy A25 5G", serv: "200", blq: "400", ok: "900" },
+
+        { m: "Samsung", mod: "Galaxy A31", serv: "140", blq: "200", ok: "450" },
+        { m: "Samsung", mod: "Galaxy A32 4G/5G", serv: "160", blq: "250", ok: "550" },
+        { m: "Samsung", mod: "Galaxy A33 5G", serv: "180", blq: "300", ok: "700" },
+        { m: "Samsung", mod: "Galaxy A34 5G", serv: "220", blq: "450", ok: "950" },
+        { m: "Samsung", mod: "Galaxy A35 5G", serv: "250", blq: "600", ok: "1200" },
+
+        { m: "Samsung", mod: "Galaxy A51", serv: "150", blq: "250", ok: "550" },
+        { m: "Samsung", mod: "Galaxy A52 / A52s 5G", serv: "180", blq: "350", ok: "800" },
+        { m: "Samsung", mod: "Galaxy A53 5G", serv: "200", blq: "450", ok: "950" },
+        { m: "Samsung", mod: "Galaxy A54 5G", serv: "250", blq: "600", ok: "1300" },
+        { m: "Samsung", mod: "Galaxy A55 5G", serv: "280", blq: "800", ok: "1600" },
+
+        { m: "Samsung", mod: "Galaxy A71", serv: "160", blq: "300", ok: "650" },
+        { m: "Samsung", mod: "Galaxy A72", serv: "180", blq: "350", ok: "750" },
+        { m: "Samsung", mod: "Galaxy A73 5G", serv: "220", blq: "500", ok: "1100" },
+
+        // Linha M (Bateria)
+        { m: "Samsung", mod: "Galaxy M12 / M13 / M14", serv: "140", blq: "200", ok: "500" },
+        { m: "Samsung", mod: "Galaxy M15 5G", serv: "160", blq: "300", ok: "700" },
+        { m: "Samsung", mod: "Galaxy M21s / M22 / M23", serv: "150", blq: "250", ok: "600" },
+        { m: "Samsung", mod: "Galaxy M31 / M32 / M34", serv: "160", blq: "300", ok: "700" },
+        { m: "Samsung", mod: "Galaxy M35 5G", serv: "180", blq: "400", ok: "900" },
+        { m: "Samsung", mod: "Galaxy M51 / M52 / M53", serv: "180", blq: "400", ok: "900" },
+        { m: "Samsung", mod: "Galaxy M54 / M55", serv: "220", blq: "600", ok: "1300" },
+
+        // Linha S (Premium)
+        { m: "Samsung", mod: "Galaxy S20 FE", serv: "200", blq: "400", ok: "850" },
+        { m: "Samsung", mod: "Galaxy S21 FE", serv: "250", blq: "550", ok: "1100" },
+        { m: "Samsung", mod: "Galaxy S21 / S21+", serv: "250", blq: "600", ok: "1300" },
+        { m: "Samsung", mod: "Galaxy S21 Ultra", serv: "300", blq: "800", ok: "1800" },
+        { m: "Samsung", mod: "Galaxy S22 / S22+", serv: "300", blq: "900", ok: "1800" },
+        { m: "Samsung", mod: "Galaxy S22 Ultra", serv: "350", blq: "1200", ok: "2400" },
+        { m: "Samsung", mod: "Galaxy S23 FE", serv: "300", blq: "1000", ok: "1900" },
+        { m: "Samsung", mod: "Galaxy S23 / S23+", serv: "350", blq: "1300", ok: "2500" },
+        { m: "Samsung", mod: "Galaxy S23 Ultra", serv: "400", blq: "1800", ok: "3200" },
+        { m: "Samsung", mod: "Galaxy S24 / S24+", serv: "400", blq: "2000", ok: "3800" },
+        { m: "Samsung", mod: "Galaxy S24 Ultra", serv: "500", blq: "2800", ok: "5000" },
+        { m: "Samsung", mod: "Z Flip 3 / 4 / 5", serv: "350", blq: "800", ok: "1800" },
+
+        // === MOTOROLA ===
+        { m: "Motorola", mod: "Moto E6s / E7 / Power", serv: "80", blq: "50", ok: "150" },
+        { m: "Motorola", mod: "Moto E13", serv: "100", blq: "100", ok: "300" },
+        { m: "Motorola", mod: "Moto E20 / E22 / E32", serv: "120", blq: "120", ok: "350" },
+        { m: "Motorola", mod: "Moto E40", serv: "120", blq: "150", ok: "400" },
         
-        // XIAOMI
-        { marca: "Xiaomi", modelo: "Redmi 12 / 13C", servico: "140", compra_ok: "300", compra_bloq: "100" },
-        { marca: "Xiaomi", modelo: "Note 12 / 13 (4G)", servico: "180", compra_ok: "550", compra_bloq: "250" },
-        { marca: "Xiaomi", modelo: "Note 12 / 13 Pro 5G", servico: "250", compra_ok: "900", compra_bloq: "500" },
-        { marca: "Xiaomi", modelo: "Poco X5 / X6", servico: "280", compra_ok: "850", compra_bloq: "500" },
-        
-        // IPHONE (Adicional Básico)
-        { marca: "Apple", modelo: "iPhone 11", servico: "Consultar", compra_ok: "1000", compra_bloq: "Sucata" },
-        { marca: "Apple", modelo: "iPhone 12", servico: "Consultar", compra_ok: "1400", compra_bloq: "Sucata" },
-        { marca: "Apple", modelo: "iPhone 13", servico: "Consultar", compra_ok: "1900", compra_bloq: "Sucata" }
+        { m: "Motorola", mod: "Moto G8 / Power / Play", serv: "100", blq: "100", ok: "250" },
+        { m: "Motorola", mod: "Moto G9 / Play / Plus", serv: "120", blq: "150", ok: "350" },
+        { m: "Motorola", mod: "Moto G10 / G20 / G30", serv: "130", blq: "180", ok: "400" },
+        { m: "Motorola", mod: "Moto G22 / G32 / G42", serv: "140", blq: "200", ok: "500" },
+        { m: "Motorola", mod: "Moto G52 / G62 5G", serv: "160", blq: "250", ok: "600" },
+        { m: "Motorola", mod: "Moto G53 / G73 5G", serv: "180", blq: "300", ok: "700" },
+        { m: "Motorola", mod: "Moto G04 / G24", serv: "140", blq: "200", ok: "500" },
+        { m: "Motorola", mod: "Moto G34 5G", serv: "160", blq: "300", ok: "650" },
+        { m: "Motorola", mod: "Moto G54 5G", serv: "180", blq: "350", ok: "800" },
+        { m: "Motorola", mod: "Moto G84 5G", serv: "200", blq: "450", ok: "1000" },
+        { m: "Motorola", mod: "Moto G85 5G", serv: "220", blq: "550", ok: "1200" },
+
+        { m: "Motorola", mod: "Edge 20 / 20 Lite / Pro", serv: "200", blq: "400", ok: "900" },
+        { m: "Motorola", mod: "Edge 30 / Neo / Fusion", serv: "220", blq: "500", ok: "1100" },
+        { m: "Motorola", mod: "Edge 30 Ultra / Pro", serv: "250", blq: "800", ok: "1600" },
+        { m: "Motorola", mod: "Edge 40 / Neo", serv: "250", blq: "700", ok: "1400" },
+        { m: "Motorola", mod: "Edge 50 Fusion / Pro", serv: "300", blq: "1000", ok: "2000" },
+
+        // === XIAOMI ===
+        { m: "Xiaomi", mod: "Redmi 9 / 9A / 9C / 9T", serv: "100", blq: "80", ok: "250" },
+        { m: "Xiaomi", mod: "Redmi 10 / 10A / 10C", serv: "120", blq: "150", ok: "400" },
+        { m: "Xiaomi", mod: "Redmi 12 / 12C", serv: "130", blq: "200", ok: "500" },
+        { m: "Xiaomi", mod: "Redmi 13C", serv: "140", blq: "250", ok: "600" },
+        { m: "Xiaomi", mod: "Redmi A3", serv: "130", blq: "180", ok: "450" },
+
+        { m: "Xiaomi", mod: "Redmi Note 8 / 8 Pro", serv: "120", blq: "150", ok: "350" },
+        { m: "Xiaomi", mod: "Redmi Note 9 / 9S / Pro", serv: "130", blq: "200", ok: "450" },
+        { m: "Xiaomi", mod: "Redmi Note 10 / 10S / Pro", serv: "150", blq: "300", ok: "650" },
+        { m: "Xiaomi", mod: "Redmi Note 11 / 11S", serv: "160", blq: "350", ok: "750" },
+        { m: "Xiaomi", mod: "Redmi Note 12 4G/5G", serv: "180", blq: "400", ok: "850" },
+        { m: "Xiaomi", mod: "Redmi Note 12 Pro / Plus", serv: "220", blq: "600", ok: "1200" },
+        { m: "Xiaomi", mod: "Redmi Note 13 4G/5G", serv: "200", blq: "500", ok: "1000" },
+        { m: "Xiaomi", mod: "Redmi Note 13 Pro / Pro+", serv: "250", blq: "800", ok: "1600" },
+
+        { m: "Xiaomi", mod: "Poco M3 / M4 / M5", serv: "150", blq: "250", ok: "600" },
+        { m: "Xiaomi", mod: "Poco X3 / NFC / Pro", serv: "160", blq: "300", ok: "700" },
+        { m: "Xiaomi", mod: "Poco X4 Pro", serv: "180", blq: "400", ok: "800" },
+        { m: "Xiaomi", mod: "Poco X5 / X5 Pro", serv: "200", blq: "500", ok: "1000" },
+        { m: "Xiaomi", mod: "Poco X6 / X6 Pro", serv: "250", blq: "700", ok: "1400" },
+        { m: "Xiaomi", mod: "Poco F3 / F4 / F5", serv: "250", blq: "600", ok: "1300" },
+
+        { m: "Xiaomi", mod: "Mi 11 / 11 Lite", serv: "200", blq: "500", ok: "1000" },
+        { m: "Xiaomi", mod: "Xiaomi 12 / 12 Lite", serv: "250", blq: "700", ok: "1400" },
+        { m: "Xiaomi", mod: "Xiaomi 13 / 13 Lite", serv: "300", blq: "1000", ok: "2000" },
+
+        // === INFINIX ===
+        { m: "Infinix", mod: "Smart 5 / 6 / 7", serv: "100", blq: "80", ok: "250" },
+        { m: "Infinix", mod: "Smart 8 / 8 Pro", serv: "120", blq: "150", ok: "350" },
+        { m: "Infinix", mod: "Hot 10 / 11 / 12", serv: "130", blq: "150", ok: "400" },
+        { m: "Infinix", mod: "Hot 20 / 30 / 40", serv: "140", blq: "250", ok: "600" },
+        { m: "Infinix", mod: "Note 10 / 11 / 12 Pro", serv: "160", blq: "300", ok: "700" },
+        { m: "Infinix", mod: "Note 30 5G / 40 Pro", serv: "180", blq: "450", ok: "1000" },
+        { m: "Infinix", mod: "Zero 5G / Ultra", serv: "200", blq: "500", ok: "1100" },
+
+        // === APPLE (IPHONE) ===
+        { m: "Apple", mod: "iPhone 11", serv: "Consultar", blq: "500", ok: "1100" },
+        { m: "Apple", mod: "iPhone 11 Pro / Max", serv: "Consultar", blq: "700", ok: "1500" },
+        { m: "Apple", mod: "iPhone 12 / Mini", serv: "Consultar", blq: "800", ok: "1600" },
+        { m: "Apple", mod: "iPhone 12 Pro / Max", serv: "Consultar", blq: "1000", ok: "2200" },
+        { m: "Apple", mod: "iPhone 13 / Mini", serv: "Consultar", blq: "1200", ok: "2500" },
+        { m: "Apple", mod: "iPhone 13 Pro / Max", serv: "Consultar", blq: "1500", ok: "3200" },
+        { m: "Apple", mod: "iPhone 14 / Plus", serv: "Consultar", blq: "1600", ok: "3000" },
+        { m: "Apple", mod: "iPhone 14 Pro / Max", serv: "Consultar", blq: "2000", ok: "4200" },
+        { m: "Apple", mod: "iPhone 15 / Plus", serv: "Consultar", blq: "2200", ok: "3800" },
+        { m: "Apple", mod: "iPhone 15 Pro / Max", serv: "Consultar", blq: "2800", ok: "5500" }
     ];
 
-    // Função de Busca
     window.filtrarPrecos = () => {
         const termo = document.getElementById('searchInput').value.toLowerCase();
         const container = document.getElementById('results-container');
+        // Importante: Limpa o container e verifica se ele existe antes de usar
+        if(!container) return;
         container.innerHTML = "";
 
-        if(termo.length < 2) return; // Só busca se tiver 2 letras
+        if(termo.length < 2) return; 
 
         const resultados = bancoPrecos.filter(item => 
-            item.modelo.toLowerCase().includes(termo) || 
-            item.marca.toLowerCase().includes(termo)
+            item.mod.toLowerCase().includes(termo) || 
+            item.m.toLowerCase().includes(termo)
         );
 
         if(resultados.length === 0) {
@@ -182,26 +302,26 @@ document.addEventListener('DOMContentLoaded', () => {
             const card = document.createElement('div');
             card.className = "price-card";
             card.innerHTML = `
-                <div class="model-name">
-                    ${item.modelo}
-                    <span class="brand-tag">${item.marca}</span>
+                <div class="model-header">
+                    <span class="model-name">${item.mod}</span>
+                    <span class="brand-badge">${item.m}</span>
                 </div>
                 <div class="price-grid">
-                    <div class="price-item" style="border: 1px solid var(--primary-color);">
-                        <span class="price-label">Cobrar Desbloqueio</span>
-                        <span class="price-value green">R$ ${item.servico}</span>
+                    <div class="price-box" style="border-color: var(--primary-color);">
+                        <span class="price-label">Serviço (Desbloqueio)</span>
+                        <span class="price-value val-service">R$ ${item.serv}</span>
                     </div>
-                    <div class="price-item">
-                        <span class="price-label">Comprar (Bloqueado)</span>
-                        <span class="price-value">R$ ${item.compra_bloq}</span>
+                    <div class="price-box">
+                        <span class="price-label">Compro (Bloqueado)</span>
+                        <span class="price-value val-buy-bad">R$ ${item.blq}</span>
                     </div>
-                    <div class="price-item">
-                        <span class="price-label">Comprar (Funcionando)</span>
-                        <span class="price-value blue">R$ ${item.compra_ok}</span>
+                    <div class="price-box">
+                        <span class="price-label">Compro (Funcionando)</span>
+                        <span class="price-value val-buy-ok">R$ ${item.ok}</span>
                     </div>
-                    <div class="price-item">
-                        <span class="price-label">Margem Lucro Est.</span>
-                        <span class="price-value" style="color:#aaa;">+ R$ ${parseInt(item.compra_ok) - parseInt(item.compra_bloq) - 50}</span>
+                    <div class="price-box">
+                        <span class="price-label">Lucro Estimado</span>
+                        <span class="price-value val-profit">+ R$ ${parseInt(item.ok) - parseInt(item.blq) - 50}</span>
                     </div>
                 </div>
             `;
