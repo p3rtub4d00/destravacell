@@ -1,12 +1,8 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // === 1. CONFIGURAÇÃO DA ASSINATURA ===
+    // === CONFIGURAÇÃO DA ASSINATURA ===
     const canvas = document.getElementById('signature-pad');
-    const signaturePad = new SignaturePad(canvas, {
-        backgroundColor: 'rgb(255, 255, 255)',
-        penColor: 'rgb(0, 0, 0)'
-    });
+    const signaturePad = new SignaturePad(canvas, { backgroundColor: 'rgb(255, 255, 255)', penColor: 'rgb(0, 0, 0)' });
 
-    // Ajusta o tamanho do canvas para telas de alta resolução (Celular)
     function resizeCanvas() {
         const ratio = Math.max(window.devicePixelRatio || 1, 1);
         canvas.width = canvas.offsetWidth * ratio;
@@ -15,208 +11,231 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     window.addEventListener("resize", resizeCanvas);
     resizeCanvas();
+    document.getElementById('clear-pad').addEventListener('click', () => signaturePad.clear());
 
-    document.getElementById('clear-pad').addEventListener('click', () => {
-        signaturePad.clear();
-    });
-
-    // === 2. CARREGAR HISTÓRICO AO INICIAR A PÁGINA ===
+    // Carrega o histórico DO BANCO DE DADOS ao abrir
     loadHistory();
 
-    // === 3. FUNÇÃO PRINCIPAL: GERAR E SALVAR ===
+    // === FUNÇÃO GERAR E SALVAR (CONECTADA AO MONGO) ===
     window.gerarPDF = async () => {
-        if (signaturePad.isEmpty()) {
-            alert("Erro: O cliente precisa assinar antes de salvar.");
-            return;
-        }
+        if (signaturePad.isEmpty()) { alert("Assinatura obrigatória!"); return; }
 
-        // Coletar Dados do Formulário
-        const dados = {
-            id: Date.now(), // ID único
-            data: new Date().toLocaleDateString('pt-BR'),
-            hora: new Date().toLocaleTimeString('pt-BR'),
-            nome: document.getElementById('nome').value || "Não Informado",
-            cpf: document.getElementById('cpf').value || "",
-            rg: document.getElementById('rg').value || "",
-            endereco: document.getElementById('endereco').value || "",
-            modelo: document.getElementById('modelo').value || "",
-            imei: document.getElementById('imei').value || "",
+        // Muda o botão para avisar que está processando
+        const btn = document.querySelector('.btn-generate');
+        const textoOriginal = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando para Nuvem...';
+        btn.disabled = true;
+
+        const dadosFormulario = {
+            nome: document.getElementById('nome').value || "---",
+            cpf: document.getElementById('cpf').value || "---",
+            rg: document.getElementById('rg').value || "---",
+            endereco: document.getElementById('endereco').value || "---",
+            modelo: document.getElementById('modelo').value || "---",
+            imei: document.getElementById('imei').value || "---",
             valor: document.getElementById('valor').value || "0,00",
             estado: document.getElementById('estado').value,
-            assinatura: signaturePad.toDataURL() // Imagem da assinatura em Base64
+            assinatura: signaturePad.toDataURL(),
+            dataFormatada: new Date().toLocaleDateString('pt-BR'),
+            horaFormatada: new Date().toLocaleTimeString('pt-BR')
         };
 
-        // Salvar na memória do navegador
-        salvarNoHistorico(dados);
+        try {
+            // 1. Tenta Salvar no MongoDB via API (Essa é a parte mágica)
+            const resposta = await fetch('/api/recibos', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(dadosFormulario)
+            });
 
-        // Gerar o PDF para download
-        criarArquivoPDF(dados);
+            if (!resposta.ok) throw new Error('Erro na conexão com o servidor');
+            
+            const dadosSalvos = await resposta.json(); 
 
-        // Limpar formulário
-        alert("Recibo salvo e baixado com sucesso!");
-        signaturePad.clear();
-        document.getElementById('nome').value = "";
-        document.getElementById('cpf').value = "";
-        document.getElementById('rg').value = "";
-        document.getElementById('endereco').value = "";
-        document.getElementById('modelo').value = "";
-        document.getElementById('imei').value = "";
-        document.getElementById('valor').value = "";
+            // 2. Se deu certo, gera o PDF
+            gerarQRCodeEPDF(dadosSalvos);
+
+            alert("✅ Sucesso! Recibo salvo na nuvem e sincronizado.");
+            
+            // Limpeza
+            signaturePad.clear();
+            document.getElementById('nome').value = "";
+            document.getElementById('modelo').value = "";
+            document.getElementById('imei').value = "";
+            document.getElementById('valor').value = "";
+            
+            // Recarrega a tabela buscando do banco
+            loadHistory();
+
+        } catch (error) {
+            console.error(error);
+            alert("❌ Erro ao salvar na nuvem: " + error.message);
+        } finally {
+            btn.innerHTML = textoOriginal;
+            btn.disabled = false;
+        }
     };
 
-    // === 4. FUNÇÃO QUE DESENHA O PDF ===
-    window.criarArquivoPDF = (d) => {
+    // === LÓGICA DE PDF + QR CODE ===
+    function gerarQRCodeEPDF(dados) {
+        const idRecibo = dados._id || Date.now();
+        const qrData = `NEXUS DIGITAL\nID: ${idRecibo}\nIMEI: ${dados.imei}\nVALOR: R$ ${dados.valor}`;
+        const qrContainer = document.getElementById("qrcode-container");
+        qrContainer.innerHTML = "";
+        
+        new QRCode(qrContainer, { text: qrData, width: 100, height: 100 });
+
+        setTimeout(() => {
+            const qrCanvas = qrContainer.querySelector('canvas');
+            const qrImg = qrCanvas ? qrCanvas.toDataURL("image/png") : null;
+            criarArquivoPDF(dados, qrImg, idRecibo);
+        }, 100);
+    }
+
+    window.criarArquivoPDF = (d, qrImg, idRecibo) => {
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF();
 
-        doc.setTextColor(0, 0, 0); // Texto Preto
+        doc.setLineWidth(0.5); doc.setDrawColor(0); doc.setTextColor(0);
 
-        // Cabeçalho Nexus Digital
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(18);
-        doc.text("RECIBO E DECLARAÇÃO DE VENDA", 105, 20, null, null, "center");
+        // Cabeçalho
+        doc.setFont("helvetica", "bold"); doc.setFontSize(22);
+        doc.text("NEXUS DIGITAL", 105, 20, null, null, "center");
+        doc.setFontSize(10); doc.setFont("helvetica", "normal");
+        doc.text("Divisão: Destrava Cell | Soluções Mobile", 105, 26, null, null, "center");
+        doc.line(10, 30, 200, 30);
+
+        doc.setFontSize(14); doc.setFont("helvetica", "bold");
+        doc.text("RECIBO DE VENDA E TRANSFERÊNCIA", 105, 40, null, null, "center");
+
+        if(qrImg) doc.addImage(qrImg, 'PNG', 170, 10, 30, 30);
+
+        let y = 50;
+
+        // Bloco Transação
+        doc.setFillColor(240, 240, 240); doc.rect(15, y, 180, 10, 'F');
+        doc.setFontSize(10); doc.setFont("helvetica", "bold");
+        doc.text("DADOS DA TRANSAÇÃO", 20, y+7); y += 15;
+        doc.setFontSize(10); doc.setFont("helvetica", "normal");
         
-        doc.setFontSize(10);
-        doc.setFont("helvetica", "normal");
-        doc.text("Documento gerado pelo sistema NEXUS DIGITAL", 105, 26, null, null, "center");
-
-        let y = 45;
-
-        // Bloco LOJA (Nexus Digital / Destrava Cell)
-        doc.setFont("helvetica", "bold");
-        doc.text("COMPRADOR (LOJA):", 20, y);
-        doc.setFont("helvetica", "normal");
-        y += 6;
-        doc.text("DESTRAVA CELL (Uma empresa NEXUS DIGITAL)", 20, y);
-        y += 5;
-        doc.text("CNPJ: Processando... | Porto Velho - RO", 20, y);
-        y += 15;
-
-        // Bloco VENDEDOR
-        doc.setFont("helvetica", "bold");
-        doc.text("VENDEDOR (CLIENTE):", 20, y);
-        doc.setFont("helvetica", "normal");
-        y += 6;
-        doc.text(`Nome: ${d.nome}`, 20, y);
-        y += 5;
-        doc.text(`CPF: ${d.cpf}  |  RG: ${d.rg}`, 20, y);
-        y += 5;
-        doc.text(`Endereço: ${d.endereco}`, 20, y);
-        y += 15;
-
-        // Bloco PRODUTO
-        doc.setFont("helvetica", "bold");
-        doc.text("OBJETO DA VENDA:", 20, y);
-        doc.setFont("helvetica", "normal");
-        y += 6;
-        doc.text(`Aparelho: ${d.modelo}`, 20, y);
-        y += 5;
-        doc.text(`IMEI: ${d.imei}`, 20, y);
-        y += 5;
-        doc.text(`Estado: ${d.estado}`, 20, y);
-        y += 15;
-
-        // Valor
-        doc.setFont("helvetica", "bold");
-        doc.text(`VALOR PAGO: R$ ${d.valor}`, 20, y);
-        y += 15;
-
-        // Declarações Legais
-        doc.setFontSize(9);
-        doc.text("DECLARAÇÃO DE RESPONSABILIDADE CIVIL E CRIMINAL:", 20, y);
-        y += 6;
-        const termos = [
-            "1. Declaro sob as penas da lei ser o legítimo proprietário do aparelho.",
-            "2. Declaro que o aparelho tem origem lícita e NÃO É produto de crime (Roubo/Furto).",
-            "3. Estou ciente de que serei responsabilizado caso o aparelho entre em Blacklist.",
-            "4. Transfiro a posse e propriedade para o Grupo Nexus Digital / Destrava Cell."
-        ];
-        termos.forEach(t => {
-            doc.text(t, 20, y);
-            y += 5;
-        });
-
+        // Se a data vier do banco (formatada) ou direta
+        const dataExibicao = d.dataFormatada || d.data || "--/--/----";
+        const horaExibicao = d.horaFormatada || d.hora || "--:--";
+        
+        doc.text(`Data: ${dataExibicao} às ${horaExibicao}`, 20, y);
+        doc.text(`ID Cloud: #${idRecibo.toString().slice(-6)}`, 120, y); 
         y += 10;
-        doc.text(`Porto Velho - RO, ${d.data} às ${d.hora}`, 20, y);
+        doc.setFont("helvetica", "bold"); doc.text(`VALOR PAGO: R$ ${d.valor}`, 20, y); y += 15;
 
-        // Assinatura
-        y = 220; 
+        // Bloco Vendedor
+        doc.setFillColor(240, 240, 240); doc.rect(15, y, 180, 10, 'F');
+        doc.text("IDENTIFICAÇÃO DO VENDEDOR", 20, y+7); y += 15;
+        doc.setFont("helvetica", "normal");
+        doc.text(`Nome: ${d.nome}`, 20, y); y += 6;
+        doc.text(`CPF: ${d.cpf} / RG: ${d.rg}`, 20, y); y += 6;
+        doc.text(`Endereço: ${d.endereco}`, 20, y); y += 15;
+
+        // Bloco Produto
+        doc.setFillColor(240, 240, 240); doc.rect(15, y, 180, 10, 'F');
+        doc.setFont("helvetica", "bold"); doc.text("APARELHO", 20, y+7); y += 15;
+        doc.setFont("helvetica", "normal");
+        doc.text(`Modelo: ${d.modelo}`, 20, y); y += 6;
+        doc.text(`IMEI: ${d.imei}`, 20, y); y += 6;
+        doc.text(`Estado: ${d.estado}`, 20, y); y += 20;
+
+        // Termos
+        doc.setFont("helvetica", "bold"); doc.setFontSize(9);
+        doc.text("TERMOS E RESPONSABILIDADE LEGAL:", 20, y); y += 6;
+        doc.setFont("helvetica", "normal"); doc.setFontSize(8);
+        const termos = [
+            "1. O VENDEDOR declara ser o proprietário legítimo e que o bem é LÍCITO.",
+            "2. O VENDEDOR isenta o Grupo NEXUS DIGITAL de responsabilidade civil/criminal.",
+            "3. O VENDEDOR assume responsabilidade caso o aparelho entre em Blacklist (Roubo/Furto).",
+            "4. A posse é transferida neste ato, em caráter irrevogável."
+        ];
+        termos.forEach(t => { doc.text(t, 20, y); y += 4; });
+
+        y += 20;
         if(d.assinatura) {
-            doc.addImage(d.assinatura, 'PNG', 20, y - 20, 50, 25);
+            doc.rect(60, y-5, 90, 35);
+            doc.addImage(d.assinatura, 'PNG', 75, y, 60, 25);
         }
-        doc.line(20, y, 90, y);
-        doc.text("Assinatura do Vendedor", 20, y + 5);
+        y += 35;
+        doc.setFontSize(8); doc.setFont("helvetica", "bold");
+        doc.text("ASSINATURA DO VENDEDOR", 105, y, null, null, "center");
 
-        // === AVISO LEGAL (RODAPÉ FIXO) ===
-        const avisoLegal = "Aviso Legal: A Destrava Cell e o Grupo Nexus Digital repudiam qualquer atividade ilícita. Realizamos consulta prévia de IMEI em todos os aparelhos. Não compramos e não desbloqueamos aparelhos com restrição de roubo ou furto (Blacklist). Nossos serviços destinam-se a proprietários legítimos que perderam acesso às suas contas ou desejam quitar débitos contratuais.";
-        
-        doc.setFontSize(7);
-        doc.setTextColor(50, 50, 50); // Cinza escuro
-        doc.text(avisoLegal, 20, 280, { maxWidth: 170, align: "justify" });
+        // Rodapé
+        doc.setFont("helvetica", "normal"); doc.setFontSize(7); doc.setTextColor(100);
+        doc.text("Aviso Legal: A Destrava Cell e o Grupo Nexus Digital repudiam atividades ilícitas. Realizamos consulta prévia de IMEI.", 105, 285, null, null, "center");
 
-        // Salvar Arquivo
-        const nomeArquivo = `Recibo_${d.nome.split(' ')[0]}_${d.id}.pdf`;
-        doc.save(nomeArquivo);
+        doc.save(`Recibo_Nexus_${d.nome.split(' ')[0]}.pdf`);
     };
 
-    // === 5. SISTEMA DE BANCO DE DADOS LOCAL (LocalStorage) ===
-    function salvarNoHistorico(dados) {
-        // Pega o que já tem salvo ou cria lista nova
-        let historico = JSON.parse(localStorage.getItem('nexus_recibos')) || [];
-        
-        // Adiciona o novo no começo da lista
-        historico.unshift(dados);
-        
-        // Salva de volta no navegador
-        localStorage.setItem('nexus_recibos', JSON.stringify(historico));
-        
-        // Atualiza a tabela na hora
-        loadHistory();
-    }
-
-    function loadHistory() {
+    // === FUNÇÕES DO BANCO DE DADOS ===
+    
+    async function loadHistory() {
         const tbody = document.querySelector('#history-table tbody');
-        tbody.innerHTML = ""; // Limpa a tabela antes de recarregar
+        
+        // Se o elemento não existir na página, para (evita erros no console)
+        if(!tbody) return;
 
-        let historico = JSON.parse(localStorage.getItem('nexus_recibos')) || [];
+        tbody.innerHTML = "<tr><td colspan='5' style='text-align:center'>🔄 Buscando dados na nuvem...</td></tr>";
 
-        if (historico.length === 0) {
-            tbody.innerHTML = "<tr><td colspan='5' style='text-align:center; padding:20px;'>Nenhum registro encontrado neste dispositivo.</td></tr>";
-            return;
+        try {
+            const res = await fetch('/api/recibos'); // Chama o Back-end
+            
+            if (!res.ok) throw new Error("Falha ao conectar na API");
+            
+            const recibos = await res.json();
+
+            tbody.innerHTML = "";
+            if (recibos.length === 0) {
+                tbody.innerHTML = "<tr><td colspan='5' style='text-align:center; padding:20px;'>Nenhum registro no banco de dados.</td></tr>";
+                return;
+            }
+
+            recibos.forEach(item => {
+                const tr = document.createElement('tr');
+                // Garante que mostre data formatada ou data bruta
+                const dataShow = item.dataFormatada || new Date(item.dataCriacao).toLocaleDateString();
+
+                tr.innerHTML = `
+                    <td>${dataShow}</td>
+                    <td>${item.nome}</td>
+                    <td>${item.modelo}</td>
+                    <td style="color:var(--primary-color)">R$ ${item.valor}</td>
+                    <td>
+                        <button class="btn-reprint" onclick="reimprimir('${item._id}')"><i class="fas fa-print"></i> PDF</button>
+                        <button class="btn-delete" onclick="deletar('${item._id}')"><i class="fas fa-trash"></i></button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        } catch (error) {
+            console.error(error);
+            tbody.innerHTML = "<tr><td colspan='5' style='color:red; text-align:center'>❌ Erro ao conectar ao banco de dados. Verifique a conexão.</td></tr>";
         }
-
-        historico.forEach(item => {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td>${item.data}</td>
-                <td>${item.nome}</td>
-                <td>${item.modelo}</td>
-                <td style="color:var(--primary-color)">R$ ${item.valor}</td>
-                <td>
-                    <button class="btn-reprint" onclick="reimprimir(${item.id})"><i class="fas fa-print"></i> PDF</button>
-                    <button class="btn-delete" onclick="deletar(${item.id})"><i class="fas fa-trash"></i></button>
-                </td>
-            `;
-            tbody.appendChild(tr);
-        });
     }
 
-    // Função para gerar PDF de novo a partir do histórico
-    window.reimprimir = (id) => {
-        let historico = JSON.parse(localStorage.getItem('nexus_recibos')) || [];
-        const item = historico.find(i => i.id === id);
-        if (item) {
-            criarArquivoPDF(item);
-        }
+    // Função global para ser acessada pelo HTML
+    window.reimprimir = async (id) => {
+        try {
+            const res = await fetch('/api/recibos'); 
+            const recibos = await res.json();
+            const item = recibos.find(r => r._id === id);
+            
+            if (item) {
+                gerarQRCodeEPDF(item);
+            }
+        } catch (e) { alert("Erro ao recuperar dados."); }
     };
 
-    // Função para apagar
-    window.deletar = (id) => {
-        if(confirm("Tem certeza que deseja apagar este registro do histórico?")) {
-            let historico = JSON.parse(localStorage.getItem('nexus_recibos')) || [];
-            historico = historico.filter(i => i.id !== id);
-            localStorage.setItem('nexus_recibos', JSON.stringify(historico));
-            loadHistory();
+    window.deletar = async (id) => {
+        if(confirm("Tem certeza que deseja apagar este registro PERMANENTEMENTE do banco de dados?")) {
+            try {
+                await fetch(`/api/recibos/${id}`, { method: 'DELETE' });
+                loadHistory(); 
+            } catch (e) { alert("Erro ao deletar."); }
         }
     };
 });
