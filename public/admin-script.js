@@ -1,58 +1,66 @@
 document.addEventListener('DOMContentLoaded', () => {
     
-    // === 1. LÓGICA DO RECIBO E ASSINATURA ===
-    const canvas = document.getElementById('signature-pad');
-    const signaturePad = new SignaturePad(canvas, { backgroundColor: 'rgb(255, 255, 255)', penColor: 'rgb(0, 0, 0)' });
-
-    function resizeCanvas() {
-        const ratio = Math.max(window.devicePixelRatio || 1, 1);
-        canvas.width = canvas.offsetWidth * ratio;
-        canvas.height = canvas.offsetHeight * ratio;
-        canvas.getContext("2d").scale(ratio, ratio);
-    }
-    window.addEventListener("resize", resizeCanvas);
-    resizeCanvas();
-    document.getElementById('clear-pad').addEventListener('click', () => signaturePad.clear());
-
-    // Carrega histórico ao iniciar
-    loadHistory();
-
-    window.gerarPDF = async () => {
-        if (signaturePad.isEmpty()) { alert("Assinatura obrigatória!"); return; }
-        const btn = document.querySelector('.btn-generate');
-        const txt = btn.innerHTML;
-        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Salvando na Nuvem...'; btn.disabled = true;
-
-        const dados = {
-            nome: document.getElementById('nome').value || "---",
-            cpf: document.getElementById('cpf').value || "---",
-            rg: document.getElementById('rg').value || "---",
-            endereco: document.getElementById('endereco').value || "---",
-            modelo: document.getElementById('modelo').value || "---",
-            imei: document.getElementById('imei').value || "---",
-            valor: document.getElementById('valor').value || "0,00",
-            estado: document.getElementById('estado').value,
-            assinatura: signaturePad.toDataURL(),
-            dataFormatada: new Date().toLocaleDateString('pt-BR'),
-            horaFormatada: new Date().toLocaleTimeString('pt-BR')
-        };
-
-        try {
-            const res = await fetch('/api/recibos', {
-                method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(dados)
-            });
-            if(!res.ok) throw new Error("Erro de conexão");
-            const salvo = await res.json();
-            
-            gerarQRCodeEPDF(salvo);
-            alert("✅ Recibo Salvo com Sucesso!");
-            signaturePad.clear();
-            document.getElementById('nome').value = "";
-            document.getElementById('valor').value = "";
-            loadHistory();
-        } catch (e) { alert("Erro: " + e.message); } 
-        finally { btn.innerHTML = txt; btn.disabled = false; }
+    // === 0. LOGOUT & AUTH ===
+    window.logout = async () => {
+        await fetch('/api/logout', {method:'POST'});
+        window.location.href = 'login.html';
     };
+
+    // === 1. LÓGICA DO RECIBO E ASSINATURA (MANTIDA) ===
+    const canvas = document.getElementById('signature-pad');
+    if(canvas) {
+        const signaturePad = new SignaturePad(canvas, { backgroundColor: 'rgb(255, 255, 255)', penColor: 'rgb(0, 0, 0)' });
+
+        function resizeCanvas() {
+            const ratio = Math.max(window.devicePixelRatio || 1, 1);
+            canvas.width = canvas.offsetWidth * ratio;
+            canvas.height = canvas.offsetHeight * ratio;
+            canvas.getContext("2d").scale(ratio, ratio);
+        }
+        window.addEventListener("resize", resizeCanvas);
+        resizeCanvas();
+        document.getElementById('clear-pad').addEventListener('click', () => signaturePad.clear());
+
+        // Carrega histórico ao iniciar
+        loadHistory();
+
+        window.gerarPDF = async () => {
+            if (signaturePad.isEmpty()) { alert("Assinatura obrigatória!"); return; }
+            const btn = document.querySelector('.btn-generate');
+            const txt = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Salvando na Nuvem...'; btn.disabled = true;
+
+            const dados = {
+                nome: document.getElementById('nome').value || "---",
+                cpf: document.getElementById('cpf').value || "---",
+                rg: document.getElementById('rg').value || "---",
+                endereco: document.getElementById('endereco').value || "---",
+                modelo: document.getElementById('modelo').value || "---",
+                imei: document.getElementById('imei').value || "---",
+                valor: document.getElementById('valor').value || "0,00",
+                estado: document.getElementById('estado').value,
+                assinatura: signaturePad.toDataURL(),
+                dataFormatada: new Date().toLocaleDateString('pt-BR'),
+                horaFormatada: new Date().toLocaleTimeString('pt-BR')
+            };
+
+            try {
+                const res = await fetch('/api/recibos', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(dados)
+                });
+                if(!res.ok) throw new Error("Erro de conexão");
+                const salvo = await res.json();
+                
+                gerarQRCodeEPDF(salvo);
+                alert("✅ Recibo Salvo com Sucesso!");
+                signaturePad.clear();
+                document.getElementById('nome').value = "";
+                document.getElementById('valor').value = "";
+                loadHistory();
+            } catch (e) { alert("Erro: " + e.message); } 
+            finally { btn.innerHTML = txt; btn.disabled = false; }
+        };
+    }
 
     function gerarQRCodeEPDF(dados) {
         const id = dados._id || Date.now();
@@ -68,7 +76,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // === AQUI ESTÁ A CORREÇÃO DO PDF ===
+    // === PDF GENERATOR (MANTIDO) ===
     window.criarArquivoPDF = (d, qr, id) => {
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF();
@@ -101,7 +109,6 @@ document.addEventListener('DOMContentLoaded', () => {
             y+=5;
         });
 
-        // --- CORREÇÃO: TERMOS LEGAIS COMPLETOS (VOLTARAM!) ---
         y+=10; 
         doc.setFont("helvetica", "bold"); doc.setFontSize(9);
         doc.text("TERMOS E RESPONSABILIDADE LEGAL:", 20, y); y+=6;
@@ -115,22 +122,19 @@ document.addEventListener('DOMContentLoaded', () => {
         ];
         termos.forEach(t => { doc.text(t, 20, y); y+=5; });
         
-        // Assinatura
         y+=20;
         if(d.assinatura) { doc.rect(60, y-5, 90, 30); doc.addImage(d.assinatura, 'PNG', 75, y, 60, 25); }
         y+=30; doc.text("ASSINATURA DO VENDEDOR", 105, y, null, null, "center");
         
-        // --- CORREÇÃO: AVISO LEGAL NO RODAPÉ (VOLTOU!) ---
         const avisoLegal = "Aviso Legal: A Destrava Cell repudia qualquer atividade ilícita. Realizamos consulta prévia de IMEI em todos os aparelhos. Não compramos e não desbloqueamos aparelhos com restrição de roubo ou furto (Blacklist).";
         doc.setFontSize(7); doc.setTextColor(80);
-        // maxWidth garante que o texto quebre linha se for muito longo e fique centralizado
         doc.text(avisoLegal, 105, 285, { maxWidth: 180, align: "center" });
 
         const safeName = d.nome ? d.nome.split(' ')[0].replace(/[^a-z0-9]/gi, '') : 'Recibo';
         doc.save(`Recibo_${safeName}.pdf`);
     };
 
-    // --- FUNÇÕES DE HISTÓRICO ---
+    // --- FUNÇÕES DE HISTÓRICO RECIBO ---
     async function loadHistory() {
         const tb = document.querySelector('#history-table tbody');
         if(!tb) return;
@@ -163,8 +167,81 @@ document.addEventListener('DOMContentLoaded', () => {
         if(confirm("Apagar permanentemente?")) { await fetch(`/api/recibos/${id}`, {method:'DELETE'}); loadHistory(); }
     };
 
+    // === 2. LÓGICA DO FINANCEIRO (NOVO) ===
+    
+    window.carregarFinanceiro = async () => {
+        const tb = document.querySelector('#finance-table tbody');
+        if(!tb) return;
+        
+        try {
+            const res = await fetch('/api/financeiro');
+            const lista = await res.json();
+            
+            let total = 0;
+            let entradas = 0;
+            let saidas = 0;
+            
+            tb.innerHTML = "";
+            lista.forEach(item => {
+                const val = parseFloat(item.valor);
+                if(item.tipo === 'entrada') { entradas += val; total += val; }
+                else { saidas += val; total -= val; }
 
-    // === 2. TABELA DE PREÇOS GIGANTE (2020-2025) ===
+                const tr = document.createElement('tr');
+                const badge = item.tipo === 'entrada' ? '<span style="background: rgba(0, 255, 136, 0.1); color: #00ff88; padding: 4px 8px; border-radius: 4px; font-size: 0.75rem;">ENTRADA</span>' : '<span style="background: rgba(255, 68, 68, 0.1); color: #ff4444; padding: 4px 8px; border-radius: 4px; font-size: 0.75rem;">SAÍDA</span>';
+                const corValor = item.tipo === 'entrada' ? 'color:#00ff88' : 'color:#ff4444';
+                const dataFormatada = new Date(item.data).toLocaleDateString('pt-BR');
+
+                tr.innerHTML = `
+                    <td>${dataFormatada}</td>
+                    <td>${item.descricao}</td>
+                    <td>${badge}</td>
+                    <td style="${corValor}">R$ ${val.toFixed(2)}</td>
+                    <td><button class="btn-delete" onclick="deletarFin('${item._id}')"><i class="fas fa-trash"></i></button></td>
+                `;
+                tb.appendChild(tr);
+            });
+
+            // Atualiza Dashboard
+            const saldoEl = document.getElementById('dash-saldo');
+            if(saldoEl) {
+                saldoEl.innerText = `R$ ${total.toFixed(2)}`;
+                saldoEl.style.color = total >= 0 ? '#00ff88' : '#ff4444';
+            }
+            if(document.getElementById('dash-entradas')) document.getElementById('dash-entradas').innerText = `R$ ${entradas.toFixed(2)}`;
+            if(document.getElementById('dash-saidas')) document.getElementById('dash-saidas').innerText = `R$ ${saidas.toFixed(2)}`;
+
+        } catch(e) { console.error("Erro financeiro", e); }
+    };
+
+    window.salvarFinanceiro = async () => {
+        const desc = document.getElementById('fin-desc').value;
+        const valor = document.getElementById('fin-valor').value;
+        const tipo = document.getElementById('fin-tipo').value;
+
+        if(!desc || !valor) { alert("Preencha descrição e valor!"); return; }
+
+        try {
+            await fetch('/api/financeiro', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ descricao: desc, valor: parseFloat(valor), tipo })
+            });
+            document.getElementById('fin-desc').value = "";
+            document.getElementById('fin-valor').value = "";
+            carregarFinanceiro();
+        } catch(e) { alert("Erro ao salvar."); }
+    };
+
+    window.deletarFin = async (id) => {
+        if(confirm("Remover este lançamento?")) {
+            await fetch(`/api/financeiro/${id}`, {method:'DELETE'});
+            carregarFinanceiro();
+        }
+    };
+
+
+    // === 3. TABELA DE PREÇOS GIGANTE (MANTIDA 100%) ===
     
     const bancoPrecos = [
         // === SAMSUNG ===
