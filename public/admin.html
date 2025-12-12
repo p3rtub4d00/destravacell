@@ -14,6 +14,7 @@
         body { background: #0f0f0f; padding-bottom: 50px; }
         .admin-container { max-width: 900px; margin: 20px auto; padding: 20px; }
         
+        /* MENU DE ABAS */
         .tabs { display: flex; gap: 10px; margin-bottom: 20px; }
         .tab-btn {
             flex: 1; padding: 15px; background: #1a1a1a; border: 1px solid #333; color: #888;
@@ -23,7 +24,7 @@
         .tab-content { display: none; }
         .tab-content.active { display: block; animation: fadeIn 0.3s; }
 
-        /* Estilos mantidos do original... */
+        /* FORMULÁRIO */
         .form-card { background: #1a1a1a; padding: 25px; border-radius: 15px; border: 1px solid #333; margin-bottom: 30px; }
         .form-group { margin-bottom: 20px; }
         label { display: block; color: #fff; margin-bottom: 8px; font-size: 0.9rem; }
@@ -41,6 +42,7 @@
 
         #qrcode-container { display: none; }
 
+        /* TABELA DE HISTÓRICO MELHORADA */
         .history-section { margin-top: 40px; border-top: 1px solid #333; padding-top: 20px; }
         .table-responsive { overflow-x: auto; border-radius: 8px; border: 1px solid #333; }
         table { width: 100%; border-collapse: collapse; color: #ccc; font-size: 0.9rem; background: #1a1a1a; }
@@ -51,6 +53,7 @@
         .btn-reprint { background: transparent; border: 1px solid var(--primary-color); color: var(--primary-color); padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 0.8rem; margin-right: 5px; }
         .btn-delete { color: #ff4444; background: transparent; border: 1px solid #ff4444; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 0.8rem; }
 
+        /* BUSCA DE PREÇOS ESTILIZADA */
         .search-box { position: relative; margin-bottom: 25px; }
         .search-box input { padding-left: 50px; height: 55px; font-size: 1.1rem; background: #1a1a1a; border-radius: 50px; border: 2px solid #333; transition: 0.3s; }
         .search-box input:focus { border-color: var(--primary-color); box-shadow: 0 0 15px rgba(0,255,136,0.1); }
@@ -58,15 +61,21 @@
         
         #results-container { display: grid; gap: 15px; }
         
-        .price-card { background: #1a1a1a; border: 1px solid #333; padding: 20px; border-radius: 12px; animation: slideIn 0.3s ease; position: relative; overflow: hidden; }
+        .price-card {
+            background: #1a1a1a; border: 1px solid #333; padding: 20px;
+            border-radius: 12px; animation: slideIn 0.3s ease; position: relative; overflow: hidden;
+        }
         .price-card::before { content: ''; position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: var(--primary-color); }
+        
         .model-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
         .model-name { font-size: 1.1rem; font-weight: bold; color: #fff; }
         .brand-badge { font-size: 0.7rem; background: #333; padding: 4px 8px; border-radius: 4px; color: #aaa; text-transform: uppercase; letter-spacing: 1px; }
+        
         .price-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
         .price-box { background: #111; padding: 12px; border-radius: 8px; text-align: center; border: 1px solid #2a2a2a; }
         .price-label { font-size: 0.7rem; color: #888; display: block; margin-bottom: 4px; text-transform: uppercase; }
         .price-value { font-size: 1.1rem; font-weight: bold; color: #fff; display: block; }
+        
         .val-service { color: var(--primary-color); text-shadow: 0 0 5px rgba(0,255,136,0.2); }
         .val-buy-ok { color: var(--secondary-color); }
         .val-buy-bad { color: #ffaa00; }
@@ -78,18 +87,18 @@
 </head>
 <body>
     <div class="admin-container">
-        <div class="header-admin">
+        <div class="header-admin" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
             <div>
                 <h4 style="color:var(--primary-color); text-transform: uppercase; letter-spacing: 2px; margin:0;">Grupo Nexus Digital</h4>
                 <h2 style="color:#fff; margin:0;">Painel Administrativo</h2>
             </div>
-            <button class="btn-logout" onclick="logout()"><i class="fas fa-sign-out-alt"></i> Sair</button>
+            <button class="btn-logout" onclick="logout()" style="background: #333; color: #fff; border: 1px solid #555; padding: 8px 15px; border-radius: 6px; cursor: pointer; transition: 0.3s; font-size: 0.8rem;"><i class="fas fa-sign-out-alt"></i> Sair</button>
         </div>
 
         <div class="tabs">
             <div class="tab-btn active" onclick="switchTab('recibo')"><i class="fas fa-file-contract"></i> Gerar Recibo</div>
             <div class="tab-btn" onclick="switchTab('financeiro')"><i class="fas fa-chart-line"></i> Financeiro</div>
-            <div class="tab-btn" onclick="switchTab('precos')"><i class="fas fa-search-dollar"></i> Preços</div>
+            <div class="tab-btn" onclick="switchTab('precos')"><i class="fas fa-search-dollar"></i> Consultar Preços</div>
         </div>
 
         <div id="tab-recibo" class="tab-content active">
@@ -139,18 +148,18 @@
         </div>
 
         <div id="tab-financeiro" class="tab-content">
-            <div class="finance-dashboard">
-                <div class="fin-card">
-                    <h3>Saldo Total</h3>
-                    <div class="value" id="dash-saldo">R$ 0,00</div>
+            <div class="finance-dashboard" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px;">
+                <div class="fin-card" style="background: #111; padding: 20px; border-radius: 12px; border: 1px solid #333; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
+                    <h3 style="font-size: 0.9rem; color: #888; text-transform: uppercase; margin-bottom: 10px;">Saldo Total</h3>
+                    <div class="value" id="dash-saldo" style="font-size: 1.8rem; font-weight: bold; color: #fff;">R$ 0,00</div>
                 </div>
-                <div class="fin-card">
-                    <h3>Entradas (Mês)</h3>
-                    <div class="value text-green" id="dash-entradas">R$ 0,00</div>
+                <div class="fin-card" style="background: #111; padding: 20px; border-radius: 12px; border: 1px solid #333;">
+                    <h3 style="font-size: 0.9rem; color: #888; text-transform: uppercase; margin-bottom: 10px;">Entradas</h3>
+                    <div class="value" id="dash-entradas" style="font-size: 1.8rem; font-weight: bold; color: #00ff88;">R$ 0,00</div>
                 </div>
-                <div class="fin-card">
-                    <h3>Saídas (Mês)</h3>
-                    <div class="value text-red" id="dash-saidas">R$ 0,00</div>
+                <div class="fin-card" style="background: #111; padding: 20px; border-radius: 12px; border: 1px solid #333;">
+                    <h3 style="font-size: 0.9rem; color: #888; text-transform: uppercase; margin-bottom: 10px;">Saídas</h3>
+                    <div class="value" id="dash-saidas" style="font-size: 1.8rem; font-weight: bold; color: #ff4444;">R$ 0,00</div>
                 </div>
             </div>
 
@@ -208,13 +217,9 @@
             document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
             document.getElementById('tab-' + tabName).classList.add('active');
             
-            // Corrige bug do canvas quando a aba estava oculta
-            if(tabName === 'recibo') {
-                window.dispatchEvent(new Event('resize')); 
-            }
-            if(tabName === 'financeiro') {
-                carregarFinanceiro(); // Função no admin-script.js
-            }
+            // Correções de renderização
+            if(tabName === 'recibo') window.dispatchEvent(new Event('resize')); 
+            if(tabName === 'financeiro') carregarFinanceiro();
             
             if(event && event.currentTarget) event.currentTarget.classList.add('active');
         }
