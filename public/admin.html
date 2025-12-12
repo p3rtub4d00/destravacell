@@ -1,156 +1,297 @@
-<!DOCTYPE html>
-<html lang="pt-br">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Nexus Digital</title>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="style.css">
-</head>
-<body>
-    <div class="admin-container">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
-            <div>
-                <h4 style="color:var(--primary-color); text-transform: uppercase; letter-spacing: 2px; margin:0;">Grupo Nexus Digital</h4>
-                <h2 style="color:#fff; margin:0;">Painel Administrativo</h2>
-            </div>
-            <button onclick="logout()" style="background:#ff4444; color:#fff; border:none; padding:8px 15px; border-radius:5px; cursor:pointer;">
-                <i class="fas fa-sign-out-alt"></i> Sair
-            </button>
-        </div>
+// --- CONFIGURAÇÕES GLOBAIS ---
+const API_URL = '/api'; 
+let TOKEN = localStorage.getItem('admin_token');
+let signaturePad = null; // Variável para guardar a assinatura
 
-        <div class="tabs">
-            <div class="tab-btn active" onclick="switchTab('recibo')"><i class="fas fa-file-contract"></i> Gerar Recibo</div>
-            <div class="tab-btn" onclick="switchTab('financeiro')"><i class="fas fa-chart-line"></i> Financeiro</div>
-            <div class="tab-btn" onclick="switchTab('precos')"><i class="fas fa-search-dollar"></i> Tabela de Preços</div>
-        </div>
+// --- INICIALIZAÇÃO AO CARREGAR A PÁGINA ---
+document.addEventListener('DOMContentLoaded', () => {
+    // 1. Verifica se está logado
+    if (!TOKEN) {
+        // Se não tiver login, redireciona para index ou pede senha
+        // Como seu HTML Admin não tem tela de login embutida, vamos assumir que ele já passou por ela
+        // ou redirecionar de volta:
+        // window.location.href = 'index.html'; 
+    }
 
-        <div id="tab-recibo" class="tab-content active">
-            <div class="form-card">
-                <h4 style="color: var(--primary-color); margin-bottom: 15px; border-bottom: 1px solid #333; padding-bottom: 10px;">Dados do Cliente</h4>
-                
-                <div class="form-group"><label>Nome Completo</label><input type="text" id="nome"></div>
-                <div style="display:flex; gap:10px;">
-                    <div class="form-group" style="flex:1;"><label>CPF</label><input type="text" id="cpf" oninput="maskCPF(this)"></div>
-                    <div class="form-group" style="flex:1;"><label>RG</label><input type="text" id="rg"></div>
-                </div>
-                <div class="form-group"><label>Endereço</label><input type="text" id="endereco"></div>
+    // 2. Inicializa a Assinatura (Signature Pad)
+    const canvas = document.getElementById('signature-pad');
+    if (canvas) {
+        // Ajusta o tamanho do canvas para a tela
+        function resizeCanvas() {
+            const ratio = Math.max(window.devicePixelRatio || 1, 1);
+            canvas.width = canvas.offsetWidth * ratio;
+            canvas.height = canvas.offsetHeight * ratio;
+            canvas.getContext("2d").scale(ratio, ratio);
+        }
+        window.onresize = resizeCanvas;
+        resizeCanvas();
 
-                <h4 style="color: var(--primary-color); margin: 25px 0 15px 0; border-bottom: 1px solid #333; padding-bottom: 10px;">Dados do Aparelho</h4>
-                <div class="form-group"><label>Modelo</label><input type="text" id="modelo"></div>
-                <div class="form-group"><label>IMEI (*#06#)</label><input type="text" id="imei"></div>
-                <div style="display:flex; gap:10px;">
-                    <div class="form-group" style="flex:1;"><label>Valor (R$)</label><input type="number" id="valor"></div>
-                    <div class="form-group" style="flex:1;">
-                        <label>Estado</label>
-                        <select id="estado">
-                            <option value="Funcionando 100%">Funcionando 100%</option>
-                            <option value="Bloqueado Conta Google">Bloqueado Conta Google</option>
-                            <option value="Bloqueado MDM/Financeiro">Bloqueado MDM/Financeiro</option>
-                            <option value="Tela Quebrada / Defeito">Tela Quebrada / Defeito</option>
-                        </select>
-                    </div>
-                </div>
+        signaturePad = new SignaturePad(canvas, {
+            backgroundColor: 'rgb(255, 255, 255)' // Fundo branco
+        });
+    }
 
-                <div style="margin-top:15px; background:#222; padding:10px; border-radius:8px; display:flex; align-items:center; gap:10px;">
-                    <input type="checkbox" id="lancar-financeiro" style="width:20px; height:20px; margin:0;">
-                    <label style="margin:0; cursor:pointer;" for="lancar-financeiro">Lançar automaticamente como SAÍDA (Compra) no Financeiro?</label>
-                </div>
-                
-                <h4 style="color:var(--primary-color); margin-top:25px;">Assinatura do Vendedor</h4>
-                <div class="signature-wrapper" style="background:#fff; border-radius:8px; overflow:hidden; border:2px solid #333;">
-                    <canvas id="signature-pad" style="width:100%; height:200px; display:block;"></canvas>
-                </div>
-                <button class="btn-clear" id="clear-pad">Limpar Assinatura</button>
-                
-                <button class="btn-generate" onclick="gerarPDF()"><i class="fas fa-save"></i> Salvar e Baixar Recibo</button>
-            </div>
-            
-            <div id="qrcode-container" style="display:none;"></div>
+    // 3. Botão de Limpar Assinatura
+    const btnClear = document.getElementById('clear-pad');
+    if (btnClear) {
+        btnClear.addEventListener('click', () => {
+            if (signaturePad) signaturePad.clear();
+        });
+    }
 
-            <div class="history-section">
-                <h3 style="color:#fff; margin-bottom:15px;">Histórico de Recibos</h3>
-                <div class="table-responsive">
-                    <table id="history-table">
-                        <thead><tr><th>Data</th><th>Cliente</th><th>Modelo</th><th>Valor</th><th>Ações</th></tr></thead>
-                        <tbody></tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
+    // 4. Carrega os dados iniciais se estiver na aba certa
+    // (Por padrão o HTML começa na aba recibo, então não precisa carregar dados agora)
+});
 
-        <div id="tab-financeiro" class="tab-content">
-            <div class="dash-cards">
-                <div class="dash-card">
-                    <h3>Total Entradas</h3>
-                    <p id="total-entradas" class="text-green">R$ 0,00</p>
-                </div>
-                <div class="dash-card">
-                    <h3>Total Saídas</h3>
-                    <p id="total-saidas" class="text-red">R$ 0,00</p>
-                </div>
-                <div class="dash-card">
-                    <h3>Saldo (Lucro)</h3>
-                    <p id="total-saldo">R$ 0,00</p>
-                </div>
-            </div>
+// --- FUNÇÃO: TROCAR ABAS (Essa estava dando erro) ---
+function switchTab(tabName) {
+    // 1. Remove a classe 'active' de todos os botões e conteúdos
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
 
-            <div class="form-card">
-                <h4 style="color: var(--primary-color); margin-bottom: 15px;">Novo Lançamento</h4>
-                <div class="finance-row">
-                    <select id="fin-tipo" style="flex:1;">
-                        <option value="entrada">Entrada (Ganho)</option>
-                        <option value="saida">Saída (Gasto)</option>
-                    </select>
-                    <select id="fin-cat" style="flex:1;">
-                        <option value="Venda Aparelho">Venda Aparelho</option>
-                        <option value="Serviço Desbloqueio">Serviço Desbloqueio</option>
-                        <option value="Compra Aparelho">Compra Aparelho</option>
-                        <option value="Peças/Outros">Peças/Outros</option>
-                    </select>
-                    <input type="text" id="fin-desc" placeholder="Descrição (Ex: Venda A10)" style="flex:2;">
-                    <input type="number" id="fin-valor" placeholder="Valor R$" style="flex:1;">
-                    <button class="btn-nav" onclick="addFinanceiro()">Adicionar</button>
-                </div>
-            </div>
-
-            <div class="history-section">
-                <h3 style="color:#fff;">Extrato Completo</h3>
-                <div class="table-responsive">
-                    <table id="finance-table">
-                        <thead><tr><th>Data</th><th>Tipo</th><th>Categoria</th><th>Descrição</th><th>Valor</th><th>Ações</th></tr></thead>
-                        <tbody></tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-
-        <div id="tab-precos" class="tab-content">
-            <div class="form-card">
-                <h4 style="color: var(--primary-color); margin-bottom: 15px;">Adicionar Modelo Novo</h4>
-                <div class="finance-row">
-                    <input type="text" id="p-marca" placeholder="Marca (Ex: Samsung)">
-                    <input type="text" id="p-modelo" placeholder="Modelo (Ex: S20 FE)">
-                    <input type="text" id="p-serv" placeholder="R$ Serviço">
-                    <input type="text" id="p-compra-bad" placeholder="R$ Compra Bloq">
-                    <input type="text" id="p-compra-ok" placeholder="R$ Compra OK">
-                    <button class="btn-nav" onclick="addPreco()">Salvar</button>
-                </div>
-            </div>
-
-            <div class="search-box">
-                <i class="fas fa-search"></i>
-                <input type="text" id="searchInput" placeholder="Digite o modelo (Ex: A14, Note 12)..." onkeyup="filtrarPrecos()">
-            </div>
-            <div id="results-container"></div>
-        </div>
-
-    </div>
+    // 2. Adiciona 'active' no botão clicado (precisamos achar qual botão chamou a função)
+    // Uma forma simples é procurar pelo texto ou índice, mas vamos fazer via ID da div:
     
-    <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.0.0/dist/signature_pad.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-    <script src="admin-script.js"></script>
-</body>
-</html>
+    // Ativa o conteúdo
+    const targetContent = document.getElementById(`tab-${tabName}`);
+    if (targetContent) {
+        targetContent.classList.add('active');
+    }
+
+    // Ativa o botão visualmente (procura qual botão tem o onclick correspondente)
+    const buttons = document.querySelectorAll('.tab-btn');
+    buttons.forEach(btn => {
+        if(btn.getAttribute('onclick').includes(tabName)) {
+            btn.classList.add('active');
+        }
+    });
+
+    // 3. Se for aba de dados, carrega os dados
+    if (tabName === 'financeiro') carregarFinanceiro();
+    if (tabName === 'precos') carregarPrecos();
+}
+
+// --- FUNÇÃO: SAIR (LOGOUT) ---
+function logout() {
+    localStorage.removeItem('admin_token');
+    window.location.href = 'index.html'; // Volta para a tela inicial
+}
+
+// --- FUNÇÃO: GERAR PDF (Recibo) ---
+async function gerarPDF() {
+    if (signaturePad && signaturePad.isEmpty()) {
+        return alert("Por favor, assine o recibo antes de gerar.");
+    }
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+
+    // Pegando valores
+    const nome = document.getElementById('nome').value;
+    const modelo = document.getElementById('modelo').value;
+    const valor = document.getElementById('valor').value;
+    const imei = document.getElementById('imei').value;
+    const dataHoje = new Date().toLocaleDateString('pt-BR');
+
+    // Cabeçalho
+    doc.setFontSize(18);
+    doc.text("RECIBO DE VENDA/SERVIÇO", 105, 20, null, null, "center");
+    
+    doc.setFontSize(12);
+    doc.text(`Data: ${dataHoje}`, 20, 40);
+    doc.text(`Cliente: ${nome}`, 20, 50);
+    doc.text(`Aparelho: ${modelo}`, 20, 60);
+    doc.text(`IMEI: ${imei}`, 20, 70);
+    doc.text(`Valor: R$ ${valor}`, 20, 80);
+
+    // Adiciona Assinatura
+    if (signaturePad) {
+        const signatureImg = signaturePad.toDataURL();
+        doc.addImage(signatureImg, 'PNG', 20, 100, 100, 50);
+        doc.text("Assinatura do Vendedor", 20, 155);
+    }
+
+    doc.save(`recibo_${nome}.pdf`);
+
+    // Opcional: Salvar no histórico ou financeiro aqui
+    if(document.getElementById('lancar-financeiro').checked) {
+        await salvarVendaFinanceiro(modelo, valor);
+    }
+}
+
+// --- FUNÇÃO AUXILIAR: MÁSCARA CPF ---
+function maskCPF(i) {
+    let v = i.value;
+    if(isNaN(v[v.length-1])){ 
+       i.value = v.substring(0, v.length-1);
+       return;
+    }
+    i.setAttribute("maxlength", "14");
+    if (v.length == 3 || v.length == 7) i.value += ".";
+    if (v.length == 11) i.value += "-";
+}
+
+// --- APIs: FINANCEIRO ---
+async function carregarFinanceiro() {
+    try {
+        const res = await fetch(`${API_URL}/financeiro`, {
+            headers: { 'Authorization': TOKEN }
+        });
+        const lista = await res.json();
+        
+        const tbody = document.querySelector('#finance-table tbody');
+        if (!tbody) return;
+        tbody.innerHTML = '';
+
+        let entrada = 0, saida = 0;
+
+        lista.forEach(item => {
+            if(item.tipo === 'entrada') entrada += item.valor;
+            else saida += item.valor;
+
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${new Date(item.data).toLocaleDateString()}</td>
+                <td>${item.tipo}</td>
+                <td>${item.categoria}</td>
+                <td>${item.descricao}</td>
+                <td style="color:${item.tipo === 'entrada' ? 'green' : 'red'}">R$ ${item.valor}</td>
+                <td><button onclick="deletarItem('financeiro', '${item._id}')" style="color:red; border:none; background:none; cursor:pointer;"><i class="fas fa-trash"></i></button></td>
+            `;
+            tbody.appendChild(tr);
+        });
+
+        // Atualiza Cards
+        document.getElementById('total-entradas').innerText = `R$ ${entrada.toFixed(2)}`;
+        document.getElementById('total-saidas').innerText = `R$ ${saida.toFixed(2)}`;
+        document.getElementById('total-saldo').innerText = `R$ ${(entrada - saida).toFixed(2)}`;
+        
+    } catch (e) { console.error(e); }
+}
+
+async function addFinanceiro() {
+    const tipo = document.getElementById('fin-tipo').value;
+    const cat = document.getElementById('fin-cat').value;
+    const desc = document.getElementById('fin-desc').value;
+    const valor = document.getElementById('fin-valor').value;
+
+    if(!desc || !valor) return alert("Preencha todos os campos");
+
+    await fetch(`${API_URL}/financeiro`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': TOKEN },
+        body: JSON.stringify({ tipo, categoria: cat, descricao: desc, valor: Number(valor) })
+    });
+
+    carregarFinanceiro(); // Recarrega tabela
+    // Limpa campos
+    document.getElementById('fin-desc').value = '';
+    document.getElementById('fin-valor').value = '';
+}
+
+// Função usada pelo checkbox "Lançar no financeiro"
+async function salvarVendaFinanceiro(modelo, valor) {
+    await fetch(`${API_URL}/financeiro`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': TOKEN },
+        body: JSON.stringify({ 
+            tipo: 'saida', // Assumindo que é compra (saída de dinheiro da loja) ou entrada? 
+            // O checkbox diz "SAÍDA (Compra)", então:
+            categoria: 'Compra Aparelho', 
+            descricao: `Compra de ${modelo}`, 
+            valor: Number(valor) 
+        })
+    });
+    alert("Lançado no financeiro com sucesso!");
+}
+
+
+// --- APIs: PREÇOS ---
+async function carregarPrecos() {
+    try {
+        const res = await fetch(`${API_URL}/precos`);
+        const lista = await res.json();
+        renderizarPrecos(lista);
+    } catch(e) { console.error(e); }
+}
+
+function renderizarPrecos(lista) {
+    const container = document.getElementById('results-container');
+    container.innerHTML = '';
+    
+    // Cria tabela dinâmica ou cards
+    const table = document.createElement('table');
+    table.style.width = '100%';
+    table.style.color = '#fff';
+    table.innerHTML = `
+        <thead>
+            <tr style="text-align:left; border-bottom:1px solid #444;">
+                <th>Marca</th><th>Modelo</th><th>Serviço</th><th>Compra Bloq</th><th>Compra OK</th><th>Ação</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    `;
+    
+    const tbody = table.querySelector('tbody');
+
+    lista.forEach(p => {
+        const tr = document.createElement('tr');
+        tr.style.borderBottom = '1px solid #333';
+        tr.innerHTML = `
+            <td style="padding:10px;">${p.marca}</td>
+            <td style="padding:10px;">${p.modelo}</td>
+            <td style="padding:10px; color:#4caf50;">R$ ${p.servico}</td>
+            <td style="padding:10px;">R$ ${p.compraBloq}</td>
+            <td style="padding:10px;">R$ ${p.compraOk}</td>
+            <td><button onclick="deletarItem('precos', '${p._id}')" style="color:red; background:none; border:none; cursor:pointer;"><i class="fas fa-trash"></i></button></td>
+        `;
+        tbody.appendChild(tr);
+    });
+    
+    container.appendChild(table);
+}
+
+// Filtro de pesquisa
+async function filtrarPrecos() {
+    const termo = document.getElementById('searchInput').value.toLowerCase();
+    const res = await fetch(`${API_URL}/precos`);
+    const lista = await res.json();
+    
+    const filtrados = lista.filter(p => 
+        p.modelo.toLowerCase().includes(termo) || 
+        p.marca.toLowerCase().includes(termo)
+    );
+    renderizarPrecos(filtrados);
+}
+
+async function addPreco() {
+    const marca = document.getElementById('p-marca').value;
+    const modelo = document.getElementById('p-modelo').value;
+    const serv = document.getElementById('p-serv').value;
+    const blq = document.getElementById('p-compra-bad').value;
+    const ok = document.getElementById('p-compra-ok').value;
+
+    if(!modelo) return alert("Preencha o modelo");
+
+    await fetch(`${API_URL}/precos`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': TOKEN },
+        body: JSON.stringify({ marca, modelo, servico: serv, compraBloq: blq, compraOk: ok })
+    });
+    
+    alert("Preço adicionado!");
+    carregarPrecos();
+}
+
+// --- FUNÇÃO DE DELETAR GENÉRICA ---
+async function deletarItem(rota, id) {
+    if(!confirm("Tem certeza?")) return;
+    
+    await fetch(`${API_URL}/${rota}/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': TOKEN }
+    });
+    
+    if(rota === 'financeiro') carregarFinanceiro();
+    if(rota === 'precos') carregarPrecos();
+}
