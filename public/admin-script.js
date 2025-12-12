@@ -1,272 +1,224 @@
-document.addEventListener('DOMContentLoaded', () => {
-    // 1. VERIFICAÇÃO DE SEGURANÇA
-    const token = localStorage.getItem('adminToken');
-    if (!token) {
-        window.location.href = 'login.html';
-        return;
+require('dotenv').config();
+const express = require('express');
+const mongoose = require('mongoose');
+const path = require('path');
+const app = express();
+
+const port = process.env.PORT || 3000;
+const mongoURI = process.env.MONGO_URI;
+const ADMIN_PASSWORD = process.env.ADMIN_PASS || "admin123";
+
+// Conectar ao MongoDB
+if (!mongoURI) {
+    console.error("❌ ERRO: MONGO_URI não definida.");
+} else {
+    mongoose.connect(mongoURI)
+        .then(() => {
+            console.log('✅ MongoDB Conectado!');
+            seedPrecos(); // <--- RODA A VARREDURA AUTOMÁTICA AO INICIAR
+        })
+        .catch(err => console.error('❌ Erro MongoDB:', err));
+}
+
+app.use(express.json({ limit: '10mb' }));
+app.use(express.static(path.join(__dirname, 'public')));
+
+// --- MIDDLEWARE DE SEGURANÇA ---
+const checkAuth = (req, res, next) => {
+    const auth = req.headers['authorization'];
+    if (auth === ADMIN_PASSWORD) {
+        next();
+    } else {
+        res.status(401).json({ erro: 'Acesso negado.' });
     }
-    
-    // Configura headers padrão para usar o token
-    const headers = { 
-        'Content-Type': 'application/json',
-        'Authorization': token 
-    };
+};
 
-    // LOGOUT
-    window.logout = () => {
-        localStorage.removeItem('adminToken');
-        window.location.href = 'login.html';
-    };
+// --- MODELOS ---
+const Recibo = mongoose.model('Recibo', new mongoose.Schema({
+    nome: String, cpf: String, rg: String, endereco: String,
+    modelo: String, imei: String, valor: String, estado: String,
+    assinatura: String,
+    dataCriacao: { type: Date, default: Date.now },
+    dataFormatada: String, horaFormatada: String
+}));
 
-    // === ABAS ===
-    window.switchTab = (tabName) => {
-        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-        document.getElementById('tab-' + tabName).classList.add('active');
-        event.currentTarget.classList.add('active');
-        
-        if(tabName === 'financeiro') loadFinanceiro();
-        if(tabName === 'precos') loadPrecos();
-    };
+const Preco = mongoose.model('Preco', new mongoose.Schema({
+    marca: String, modelo: String,
+    servico: String, compraBloq: String, compraOk: String
+}));
 
-    // === MÁSCARA CPF ===
-    window.maskCPF = (i) => {
-        let v = i.value.replace(/\D/g, "");
-        v = v.replace(/(\d{3})(\d)/, "$1.$2");
-        v = v.replace(/(\d{3})(\d)/, "$1.$2");
-        v = v.replace(/(\d{3})(\d{1,2})$/, "$1-$2");
-        i.value = v;
-    };
+const Financeiro = mongoose.model('Financeiro', new mongoose.Schema({
+    tipo: String, categoria: String, descricao: String,
+    valor: Number, data: { type: Date, default: Date.now }, dataFormatada: String
+}));
 
-    // === 1. RECIBOS (LÓGICA EXISTENTE MELHORADA) ===
-    const canvas = document.getElementById('signature-pad');
-    const signaturePad = new SignaturePad(canvas, { backgroundColor: '#fff' });
-    
-    function resizeCanvas() {
-        const ratio = Math.max(window.devicePixelRatio || 1, 1);
-        canvas.width = canvas.offsetWidth * ratio;
-        canvas.height = canvas.offsetHeight * ratio;
-        canvas.getContext("2d").scale(ratio, ratio);
-    }
-    window.addEventListener("resize", resizeCanvas);
-    setTimeout(resizeCanvas, 500); // Garante resize ao carregar
-    document.getElementById('clear-pad').addEventListener('click', () => signaturePad.clear());
+// --- ROTAS DA API ---
 
-    loadHistory();
-
-    window.gerarPDF = async () => {
-        if (signaturePad.isEmpty()) { alert("Assine primeiro!"); return; }
-        
-        const dados = {
-            nome: document.getElementById('nome').value,
-            cpf: document.getElementById('cpf').value,
-            rg: document.getElementById('rg').value,
-            endereco: document.getElementById('endereco').value,
-            modelo: document.getElementById('modelo').value,
-            imei: document.getElementById('imei').value,
-            valor: document.getElementById('valor').value,
-            estado: document.getElementById('estado').value,
-            assinatura: signaturePad.toDataURL(),
-            dataFormatada: new Date().toLocaleDateString('pt-BR'),
-            horaFormatada: new Date().toLocaleTimeString('pt-BR')
-        };
-
-        try {
-            // Salvar Recibo
-            const res = await fetch('/api/recibos', { method: 'POST', headers, body: JSON.stringify(dados) });
-            const salvo = await res.json();
-            
-            // Lançar no Financeiro se marcado
-            if(document.getElementById('lancar-financeiro').checked) {
-                await fetch('/api/financeiro', {
-                    method: 'POST', headers,
-                    body: JSON.stringify({
-                        tipo: 'saida',
-                        categoria: 'Compra Aparelho',
-                        descricao: `Compra ${dados.modelo} - ${dados.nome}`,
-                        valor: parseFloat(dados.valor),
-                        dataFormatada: dados.dataFormatada
-                    })
-                });
-            }
-
-            gerarQRCodeEPDF(salvo);
-            alert("✅ Salvo com sucesso!");
-            loadHistory();
-            signaturePad.clear();
-        } catch (e) { alert("Erro ao salvar: " + e.message); }
-    };
-
-    // (MANTENHA A FUNÇÃO gerarQRCodeEPDF e criarArquivoPDF AQUI IGUAL AO SEU CÓDIGO ANTERIOR)
-    // Para economizar espaço, vou resumir a chamada, mas você deve colar suas funções de PDF aqui.
-    function gerarQRCodeEPDF(dados) {
-        // ... sua lógica de PDF existente ...
-        // Vou simular que chamei o PDF:
-        const id = dados._id || Date.now();
-        const container = document.getElementById("qrcode-container");
-        new QRCode(container, { text: `ID:${id}`, width: 100, height: 100 });
-        setTimeout(() => {
-            const img = container.querySelector('canvas').toDataURL();
-            criarArquivoPDF(dados, img, id);
-        }, 100);
-    }
-    
-    window.criarArquivoPDF = (d, qr, id) => {
-        const { jsPDF } = window.jspdf;
-        const doc = new jsPDF();
-        // ... (COLE AQUI A SUA LÓGICA DE PDF BONITA DO ARQUIVO ANTERIOR) ...
-        // ... Use exatamente o código que você já tinha ...
-        
-        // Exemplo simplificado para garantir que funcione se você copiar só isso:
-        doc.text(`RECIBO NEXUS - ${d.modelo}`, 20, 20);
-        doc.text(`Valor: R$ ${d.valor}`, 20, 30);
-        if(d.assinatura) doc.addImage(d.assinatura, 'PNG', 20, 50, 50, 20);
-        doc.save(`Recibo_${d.nome}.pdf`);
-    };
-
-    async function loadHistory() {
-        const tb = document.querySelector('#history-table tbody');
-        const res = await fetch('/api/recibos', { headers });
-        const lista = await res.json();
-        tb.innerHTML = "";
-        lista.forEach(i => {
-            tb.innerHTML += `<tr>
-                <td>${i.dataFormatada}</td><td>${i.nome}</td><td>${i.modelo}</td><td>R$ ${i.valor}</td>
-                <td>
-                    <button class="btn-delete" onclick="copiarZap('${i.modelo}', '${i.valor}', '${i.imei}')"><i class="fab fa-whatsapp"></i></button>
-                    <button class="btn-delete" onclick="deletarRecibo('${i._id}')"><i class="fas fa-trash"></i></button>
-                </td>
-            </tr>`;
-        });
-    }
-
-    window.copiarZap = (mod, val, imei) => {
-        const texto = `Olá! Segue resumo:\nModelo: ${mod}\nIMEI: ${imei}\nValor: R$ ${val}\n\nAssinado digitalmente.`;
-        navigator.clipboard.writeText(texto);
-        alert("Texto copiado para colar no WhatsApp!");
-    };
-
-    window.deletarRecibo = async (id) => {
-        if(confirm("Apagar?")) { await fetch(`/api/recibos/${id}`, { method:'DELETE', headers }); loadHistory(); }
-    };
-
-
-    // === 2. FINANCEIRO (LÓGICA NOVA) ===
-    async function loadFinanceiro() {
-        const res = await fetch('/api/financeiro', { headers });
-        const lista = await res.json();
-        const tb = document.querySelector('#finance-table tbody');
-        tb.innerHTML = "";
-        
-        let ent = 0, sai = 0;
-
-        lista.forEach(i => {
-            if(i.tipo === 'entrada') ent += i.valor;
-            else sai += i.valor;
-            
-            const color = i.tipo === 'entrada' ? '#00ff88' : '#ff4444';
-            const seta = i.tipo === 'entrada' ? '⬆' : '⬇';
-
-            tb.innerHTML += `<tr>
-                <td>${new Date(i.data).toLocaleDateString()}</td>
-                <td style="color:${color}">${seta} ${i.tipo.toUpperCase()}</td>
-                <td>${i.categoria}</td>
-                <td>${i.descricao}</td>
-                <td>R$ ${i.valor.toFixed(2)}</td>
-                <td><button class="btn-delete" onclick="delFin('${i._id}')"><i class="fas fa-trash"></i></button></td>
-            </tr>`;
-        });
-
-        document.getElementById('total-entradas').innerText = `R$ ${ent.toFixed(2)}`;
-        document.getElementById('total-saidas').innerText = `R$ ${sai.toFixed(2)}`;
-        const saldo = ent - sai;
-        const elSaldo = document.getElementById('total-saldo');
-        elSaldo.innerText = `R$ ${saldo.toFixed(2)}`;
-        elSaldo.style.color = saldo >= 0 ? '#00ff88' : '#ff4444';
-    }
-
-    window.addFinanceiro = async () => {
-        const dados = {
-            tipo: document.getElementById('fin-tipo').value,
-            categoria: document.getElementById('fin-cat').value,
-            descricao: document.getElementById('fin-desc').value,
-            valor: parseFloat(document.getElementById('fin-valor').value),
-            dataFormatada: new Date().toLocaleDateString()
-        };
-        await fetch('/api/financeiro', { method: 'POST', headers, body: JSON.stringify(dados) });
-        document.getElementById('fin-desc').value = "";
-        document.getElementById('fin-valor').value = "";
-        loadFinanceiro();
-    };
-
-    window.delFin = async (id) => {
-        if(confirm("Remover lançamento?")) { await fetch(`/api/financeiro/${id}`, { method:'DELETE', headers }); loadFinanceiro(); }
-    };
-
-
-    // === 3. PREÇOS (LÓGICA NOVA COM BANCO DE DADOS) ===
-    let todosPrecos = [];
-
-    async function loadPrecos() {
-        const res = await fetch('/api/precos'); // Pode ser publico ou privado, aqui ta publico no get
-        todosPrecos = await res.json();
-        renderPrecos(todosPrecos);
-    }
-
-    function renderPrecos(lista) {
-        const container = document.getElementById('results-container');
-        container.innerHTML = "";
-        if(lista.length === 0) { container.innerHTML = "<p style='color:#666; text-align:center'>Nenhum preço cadastrado.</p>"; return; }
-
-        lista.forEach(item => {
-            const card = document.createElement('div');
-            card.className = "price-card";
-            card.innerHTML = `
-                <div class="model-header">
-                    <span class="model-name">${item.marca} - ${item.modelo}</span>
-                    <button class="btn-delete" onclick="delPreco('${item._id}')" style="float:right"><i class="fas fa-trash"></i></button>
-                </div>
-                <div class="price-grid">
-                    <div class="price-box" style="border-color: #00ff88;">
-                        <span class="price-label">Serviço</span>
-                        <span class="price-value" style="color:#00ff88">${item.servico}</span>
-                    </div>
-                    <div class="price-box">
-                        <span class="price-label">Compra Bloq.</span>
-                        <span class="price-value" style="color:#ffaa00">${item.compraBloq}</span>
-                    </div>
-                    <div class="price-box">
-                        <span class="price-label">Compra OK</span>
-                        <span class="price-value" style="color:#00d4ff">${item.compraOk}</span>
-                    </div>
-                </div>
-            `;
-            container.appendChild(card);
-        });
-    }
-
-    window.addPreco = async () => {
-        const dados = {
-            marca: document.getElementById('p-marca').value,
-            modelo: document.getElementById('p-modelo').value,
-            servico: document.getElementById('p-serv').value,
-            compraBloq: document.getElementById('p-compra-bad').value,
-            compraOk: document.getElementById('p-compra-ok').value
-        };
-        await fetch('/api/precos', { method: 'POST', headers, body: JSON.stringify(dados) });
-        alert("Preço adicionado!");
-        loadPrecos();
-    };
-
-    window.filtrarPrecos = () => {
-        const termo = document.getElementById('searchInput').value.toLowerCase();
-        const filtrados = todosPrecos.filter(i => 
-            i.modelo.toLowerCase().includes(termo) || i.marca.toLowerCase().includes(termo)
-        );
-        renderPrecos(filtrados);
-    };
-    
-    window.delPreco = async (id) => {
-        if(confirm("Apagar modelo?")) { await fetch(`/api/precos/${id}`, { method:'DELETE', headers }); loadPrecos(); }
-    };
+// Login
+app.post('/api/login', (req, res) => {
+    if (req.body.password === ADMIN_PASSWORD) res.json({ success: true, token: req.body.password });
+    else res.status(401).json({ success: false });
 });
+
+// Recibos
+app.post('/api/recibos', checkAuth, async (req, res) => {
+    try {
+        const novo = new Recibo(req.body);
+        res.status(201).json(await novo.save());
+    } catch (e) { res.status(500).json({ erro: e.message }); }
+});
+app.get('/api/recibos', checkAuth, async (req, res) => {
+    res.json(await Recibo.find().sort({ dataCriacao: -1 }));
+});
+app.delete('/api/recibos/:id', checkAuth, async (req, res) => {
+    await Recibo.findByIdAndDelete(req.params.id);
+    res.json({ msg: 'Deletado' });
+});
+
+// Financeiro
+app.get('/api/financeiro', checkAuth, async (req, res) => {
+    res.json(await Financeiro.find().sort({ data: -1 }));
+});
+app.post('/api/financeiro', checkAuth, async (req, res) => {
+    const novo = new Financeiro(req.body);
+    res.status(201).json(await novo.save());
+});
+app.delete('/api/financeiro/:id', checkAuth, async (req, res) => {
+    await Financeiro.findByIdAndDelete(req.params.id);
+    res.json({ msg: 'Deletado' });
+});
+
+// Preços
+app.get('/api/precos', async (req, res) => {
+    res.json(await Preco.find().sort({ marca: 1, modelo: 1 }));
+});
+app.post('/api/precos', checkAuth, async (req, res) => {
+    const novo = new Preco(req.body);
+    res.status(201).json(await novo.save());
+});
+app.delete('/api/precos/:id', checkAuth, async (req, res) => {
+    await Preco.findByIdAndDelete(req.params.id);
+    res.json({ msg: 'Deletado' });
+});
+
+// Front-end
+app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
+app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+
+app.listen(port, () => console.log(`🚀 Servidor rodando na porta ${port}`));
+
+// === FUNÇÃO DE "VARREDURA" E POPULAÇÃO DO BANCO ===
+// Se o banco estiver vazio, ele preenche com essa lista automaticamente.
+async function seedPrecos() {
+    const count = await Preco.countDocuments();
+    if (count > 0) return; // Já tem dados, não faz nada.
+
+    console.log("🔄 Banco de Preços vazio. Iniciando varredura e preenchimento automático...");
+    
+    // REGRA DE PREÇO: Custo Servidor = 50.
+    // Serviço = 50 + Lucro (Min 70 a Max 350)
+    
+    const listaMestra = [
+        // --- SAMSUNG (2020-2025) ---
+        // Linha S (Premium)
+        { m: "Samsung", mod: "Galaxy S25 Ultra (Lançamento)", serv: "450", blq: "3500", ok: "6500" },
+        { m: "Samsung", mod: "Galaxy S25 / S25+", serv: "400", blq: "2500", ok: "4800" },
+        { m: "Samsung", mod: "Galaxy S24 Ultra", serv: "400", blq: "2200", ok: "4500" },
+        { m: "Samsung", mod: "Galaxy S24 / S24+", serv: "350", blq: "1800", ok: "3200" },
+        { m: "Samsung", mod: "Galaxy S23 Ultra", serv: "350", blq: "1500", ok: "2800" },
+        { m: "Samsung", mod: "Galaxy S23 FE", serv: "250", blq: "1000", ok: "1900" },
+        { m: "Samsung", mod: "Galaxy S22 Ultra", serv: "300", blq: "1100", ok: "2100" },
+        { m: "Samsung", mod: "Galaxy S21 FE", serv: "200", blq: "600", ok: "1200" },
+        { m: "Samsung", mod: "Galaxy S20 FE", serv: "150", blq: "400", ok: "850" },
+        { m: "Samsung", mod: "Z Fold 6 / 7", serv: "500", blq: "3000", ok: "7000" },
+        { m: "Samsung", mod: "Z Flip 6 / 7", serv: "400", blq: "1500", ok: "3500" },
+
+        // Linha A (Intermediários - Custo 50 + Lucro médio 100-150)
+        { m: "Samsung", mod: "Galaxy A56 5G (Novo)", serv: "250", blq: "900", ok: "1800" },
+        { m: "Samsung", mod: "Galaxy A55 5G", serv: "220", blq: "700", ok: "1500" },
+        { m: "Samsung", mod: "Galaxy A54 5G", serv: "200", blq: "550", ok: "1200" },
+        { m: "Samsung", mod: "Galaxy A36 5G (Novo)", serv: "220", blq: "700", ok: "1400" },
+        { m: "Samsung", mod: "Galaxy A35 5G", serv: "180", blq: "500", ok: "1100" },
+        { m: "Samsung", mod: "Galaxy A34 5G", serv: "160", blq: "400", ok: "900" },
+        { m: "Samsung", mod: "Galaxy A26 (Novo)", serv: "180", blq: "500", ok: "1100" },
+        { m: "Samsung", mod: "Galaxy A25 5G", serv: "160", blq: "400", ok: "900" },
+        { m: "Samsung", mod: "Galaxy A16 5G", serv: "150", blq: "350", ok: "800" },
+        { m: "Samsung", mod: "Galaxy A15 4G/5G", serv: "150", blq: "300", ok: "700" },
+        { m: "Samsung", mod: "Galaxy A14 4G/5G", serv: "140", blq: "250", ok: "600" },
+        { m: "Samsung", mod: "Galaxy A06", serv: "130", blq: "200", ok: "550" },
+        { m: "Samsung", mod: "Galaxy A05 / A05s", serv: "130", blq: "200", ok: "500" },
+        { m: "Samsung", mod: "Galaxy A04 / A04s", serv: "120", blq: "150", ok: "400" },
+        { m: "Samsung", mod: "Galaxy A03 / Core", serv: "120", blq: "100", ok: "300" },
+
+        // Linha M
+        { m: "Samsung", mod: "Galaxy M55 5G", serv: "200", blq: "600", ok: "1300" },
+        { m: "Samsung", mod: "Galaxy M35 5G", serv: "180", blq: "450", ok: "1000" },
+        { m: "Samsung", mod: "Galaxy M15 5G", serv: "150", blq: "300", ok: "750" },
+
+        // --- MOTOROLA (2020-2025) ---
+        // Linha Edge
+        { m: "Motorola", mod: "Edge 60 Pro / Ultra (2025)", serv: "400", blq: "2000", ok: "4000" },
+        { m: "Motorola", mod: "Edge 50 Ultra / Pro", serv: "350", blq: "1500", ok: "3000" },
+        { m: "Motorola", mod: "Edge 50 Fusion", serv: "250", blq: "900", ok: "1800" },
+        { m: "Motorola", mod: "Edge 40 / Neo", serv: "220", blq: "700", ok: "1400" },
+        { m: "Motorola", mod: "Edge 30 Ultra / Fusion", serv: "220", blq: "600", ok: "1300" },
+
+        // Linha Moto G (Intermediários)
+        { m: "Motorola", mod: "Moto G86 5G (Lançamento)", serv: "220", blq: "800", ok: "1600" },
+        { m: "Motorola", mod: "Moto G85 5G", serv: "200", blq: "600", ok: "1300" },
+        { m: "Motorola", mod: "Moto G84 5G", serv: "180", blq: "500", ok: "1100" },
+        { m: "Motorola", mod: "Moto G56 5G (2025)", serv: "180", blq: "550", ok: "1200" },
+        { m: "Motorola", mod: "Moto G54 / G53", serv: "160", blq: "350", ok: "800" },
+        { m: "Motorola", mod: "Moto G34 / G35 5G", serv: "150", blq: "300", ok: "750" },
+        { m: "Motorola", mod: "Moto G24 / Power", serv: "140", blq: "250", ok: "600" },
+        { m: "Motorola", mod: "Moto G04 / G06", serv: "120", blq: "150", ok: "500" },
+
+        // --- XIAOMI (2020-2025) ---
+        // Linha Redmi Note
+        { m: "Xiaomi", mod: "Redmi Note 14 Pro+ 5G", serv: "250", blq: "1000", ok: "2200" },
+        { m: "Xiaomi", mod: "Redmi Note 14 Pro", serv: "220", blq: "800", ok: "1700" },
+        { m: "Xiaomi", mod: "Redmi Note 14 5G", serv: "180", blq: "600", ok: "1300" },
+        { m: "Xiaomi", mod: "Redmi Note 13 Pro+", serv: "220", blq: "700", ok: "1500" },
+        { m: "Xiaomi", mod: "Redmi Note 13 4G/5G", serv: "180", blq: "450", ok: "1000" },
+        { m: "Xiaomi", mod: "Redmi Note 12 Series", serv: "160", blq: "350", ok: "850" },
+        
+        // Linha POCO
+        { m: "Xiaomi", mod: "Poco X7 Pro", serv: "250", blq: "900", ok: "1900" },
+        { m: "Xiaomi", mod: "Poco X6 Pro", serv: "220", blq: "700", ok: "1600" },
+        { m: "Xiaomi", mod: "Poco M6 Pro", serv: "180", blq: "500", ok: "1100" },
+        { m: "Xiaomi", mod: "Poco C75 / C85", serv: "130", blq: "250", ok: "650" },
+
+        // Linha Básica
+        { m: "Xiaomi", mod: "Redmi 15C / 14C", serv: "140", blq: "300", ok: "700" },
+        { m: "Xiaomi", mod: "Redmi 13 / 13C", serv: "130", blq: "250", ok: "600" },
+        { m: "Xiaomi", mod: "Redmi A3 / A3x", serv: "120", blq: "150", ok: "450" },
+
+        // --- INFINIX (Crescendo no Brasil) ---
+        { m: "Infinix", mod: "Note 50 Pro (2025)", serv: "200", blq: "700", ok: "1500" },
+        { m: "Infinix", mod: "Note 40 Pro / 5G", serv: "180", blq: "600", ok: "1300" },
+        { m: "Infinix", mod: "Hot 50i / 60i", serv: "140", blq: "300", ok: "700" },
+        { m: "Infinix", mod: "Smart 9 / 10", serv: "120", blq: "150", ok: "500" },
+
+        // --- APPLE (iPhone) ---
+        // Serviço sempre "A Consultar" ou valor alto devido ao risco/custo alto de bypass
+        { m: "Apple", mod: "iPhone 16 Pro Max", serv: "Consultar", blq: "3000", ok: "7000" },
+        { m: "Apple", mod: "iPhone 16 / Plus", serv: "Consultar", blq: "2200", ok: "5000" },
+        { m: "Apple", mod: "iPhone 15 Pro Max", serv: "Consultar", blq: "2500", ok: "5500" },
+        { m: "Apple", mod: "iPhone 15", serv: "Consultar", blq: "1800", ok: "3500" },
+        { m: "Apple", mod: "iPhone 14 Pro Max", serv: "Consultar", blq: "2000", ok: "4500" },
+        { m: "Apple", mod: "iPhone 14", serv: "Consultar", blq: "1500", ok: "2800" },
+        { m: "Apple", mod: "iPhone 13", serv: "Consultar", blq: "1200", ok: "2200" },
+        { m: "Apple", mod: "iPhone 12", serv: "Consultar", blq: "900", ok: "1600" },
+        { m: "Apple", mod: "iPhone 11", serv: "Consultar", blq: "600", ok: "1200" }
+    ];
+
+    try {
+        await Preco.insertMany(listaMestra.map(p => ({
+            marca: p.m, modelo: p.mod,
+            servico: p.serv, compraBloq: p.blq, compraOk: p.ok
+        })));
+        console.log(`✅ ${listaMestra.length} modelos de 2020 a 2025 adicionados ao banco com sucesso!`);
+    } catch (e) {
+        console.error("Erro ao popular banco:", e);
+    }
+}
