@@ -47,7 +47,7 @@
                     <div class="form-group"><label>IMEI</label><input type="text" id="imei"></div>
                 </div>
                 <div class="row-inputs">
-                    <div class="form-group"><label>Valor (R$)</label><input type="number" id="valor"></div>
+                    <div class="form-group"><label>Valor Pago (R$)</label><input type="number" id="valor"></div>
                     <div class="form-group"><label>Estado</label>
                         <select id="estado">
                             <option value="Excelente">Excelente</option>
@@ -59,7 +59,7 @@
                 </div>
                 <label>Assinatura</label>
                 <div class="signature-wrapper"><canvas id="signature-pad"></canvas></div>
-                <button id="clear-pad" class="btn-clear">Limpar</button>
+                <button onclick="signaturePadCompras.clear()" class="btn-clear">Limpar</button>
                 <button class="btn-generate" onclick="gerarPDF()">Salvar e Gerar Recibo</button>
             </div>
             <div class="history-section">
@@ -72,13 +72,9 @@
             <button class="btn-primary" onclick="abrirModalOS('novo')" style="width: 100%; margin-bottom: 20px; padding: 15px;">
                 <i class="fas fa-plus"></i> NOVA ORDEM DE SERVIÇO
             </button>
-            <div class="search-box">
-                <i class="fas fa-search"></i>
-                <input type="text" id="busca-os" placeholder="Buscar..." onkeyup="filtrarOS()">
-            </div>
             <div class="table-responsive">
                 <table id="os-table">
-                    <thead><tr><th>OS #</th><th>Cliente</th><th>Aparelho</th><th>Status</th><th>Total</th><th>Ações</th></tr></thead>
+                    <thead><tr><th>OS #</th><th>Cliente</th><th>Aparelho</th><th>Status</th><th>Total (Restante)</th><th>Ações</th></tr></thead>
                     <tbody id="lista-os-body"></tbody>
                 </table>
             </div>
@@ -91,7 +87,7 @@
                 <div class="card-dash"><span>Saídas</span><h2 id="dash-saidas" style="color:#ff4444;">R$ 0,00</h2></div>
             </div>
             <div class="form-card" style="margin-top: 20px;">
-                <h3>Novo Lançamento</h3>
+                <h3>Novo Lançamento Manual</h3>
                 <div class="row-inputs">
                     <div class="form-group"><label>Descrição</label><input type="text" id="fin-desc"></div>
                     <div class="form-group"><label>Valor</label><input type="number" id="fin-valor"></div>
@@ -110,7 +106,9 @@
                 <button onclick="fecharModalOS()" class="btn-close">&times;</button>
             </div>
             <div class="modal-body">
-                <input type="hidden" id="os-id-hidden"> <h4 class="step-title">1. Cliente e Aparelho</h4>
+                <input type="hidden" id="os-id-hidden">
+
+                <h4 class="step-title">1. Cliente e Aparelho</h4>
                 <div class="row-inputs">
                     <input type="text" id="os-cliente" placeholder="Nome do Cliente">
                     <input type="text" id="os-tel" placeholder="WhatsApp">
@@ -124,53 +122,39 @@
                     <input type="text" id="os-acessorios" placeholder="Acessórios">
                 </div>
 
-                <h4 class="step-title">2. Checklist de Entrada</h4>
+                <h4 class="step-title">2. Checklist</h4>
                 <div class="checklist-grid">
                     <label class="check-item"><input type="checkbox" id="chk-liga"> Liga</label>
-                    <label class="check-item"><input type="checkbox" id="chk-tela"> Tela Intacta</label>
+                    <label class="check-item"><input type="checkbox" id="chk-tela"> Tela</label>
                     <label class="check-item"><input type="checkbox" id="chk-touch"> Touch</label>
-                    <label class="check-item"><input type="checkbox" id="chk-audio"> Áudio</label>
-                    <label class="check-item"><input type="checkbox" id="chk-camera"> Câmeras</label>
-                    <label class="check-item"><input type="checkbox" id="chk-carga"> Carrega</label>
-                    <label class="check-item"><input type="checkbox" id="chk-wifi"> Wi-Fi</label>
-                    <label class="check-item"><input type="checkbox" id="chk-biom"> Biometria</label>
                 </div>
                 <textarea id="os-obs" placeholder="Observações..." style="width:100%; margin-top:10px; padding:10px; background:#222; border:1px solid #444; color:#fff;"></textarea>
 
                 <h4 class="step-title">3. Valores</h4>
                 <textarea id="os-defeito" placeholder="Defeito Relatado"></textarea>
                 <div class="row-inputs">
-                    <input type="number" id="os-pecas" placeholder="Custo Peças">
-                    <input type="number" id="os-mao" placeholder="Mão de Obra">
+                    <input type="number" id="os-pecas" placeholder="Peças (R$)">
+                    <input type="number" id="os-mao" placeholder="Mão de Obra (R$)">
                 </div>
                 <div class="row-inputs">
-                    <input type="number" id="os-desconto" placeholder="Desconto">
-                    <input type="number" id="os-sinal" placeholder="Sinal">
+                    <input type="number" id="os-desconto" placeholder="Desconto (R$)">
+                    <input type="number" id="os-sinal" placeholder="Sinal / Entrada (R$)">
                 </div>
                 <div class="total-display">Total: R$ <span id="os-total-display">0,00</span></div>
 
                 <h4 class="step-title" style="margin-top: 20px;">4. Assinatura do Cliente</h4>
-                
                 <div style="display:flex; gap:10px; margin-bottom:10px;">
-                    <button onclick="mostrarTabAssinatura('pc')" class="btn-action" style="flex:1;">Assinar no PC</button>
-                    <button onclick="gerarQRCodeOS()" class="btn-action" style="flex:1;">Gerar QR Code (Celular)</button>
+                    <button onclick="mostrarTabAssinatura('pc')" class="btn-action" style="flex:1;">Assinar Aqui</button>
+                    <button onclick="gerarQRCodeOS()" class="btn-action" style="flex:1;">Gerar QR Code</button>
                 </div>
-
-                <div id="area-assinatura-pc" style="display:block;">
-                    <div class="signature-wrapper" style="border: 1px solid #555;">
-                        <canvas id="signature-pad-os"></canvas>
-                    </div>
+                
+                <div id="area-assinatura-pc">
+                    <div class="signature-wrapper" style="border: 1px solid #555;"><canvas id="signature-pad-os"></canvas></div>
                     <button onclick="limparAssinaturaOS()" class="btn-clear" style="width:auto; padding:5px 10px;">Limpar</button>
                 </div>
-
+                
                 <div id="area-assinatura-qr" style="display:none; text-align:center; padding: 20px; background: #fff; border-radius: 10px;">
                     <div id="qrcode-os"></div>
-                    <p style="color:#000; margin-top:10px;">Peça para o cliente escanear.</p>
-                    <p style="color:#000; font-size: 0.8rem;">O sistema detectará a assinatura automaticamente.</p>
-                </div>
-
-                <div id="status-assinatura" style="color: #00ff88; font-weight: bold; margin-top: 10px; display: none;">
-                    ✅ Assinado Digitalmente
                 </div>
 
             </div>
