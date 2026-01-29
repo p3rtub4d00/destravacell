@@ -3,68 +3,40 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Assinar OS Digital</title>
+    <title>Assinar OS</title>
     <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.0.0/dist/signature_pad.umd.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
     <style>
-        body { background: #121212; color: #fff; font-family: 'Poppins', sans-serif; display: flex; flex-direction: column; align-items: center; padding: 20px; }
-        h2 { color: #00ff88; margin-bottom: 10px; }
-        p { text-align: center; margin-bottom: 20px; color: #ccc; }
-        .canvas-container { background: #fff; padding: 5px; border-radius: 5px; }
-        canvas { border: 1px solid #ccc; width: 300px; height: 200px; touch-action: none; }
-        button { width: 300px; padding: 15px; margin-top: 20px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; font-size: 1rem; }
-        .btn-save { background: #00ff88; color: #000; }
-        .btn-clear { background: #444; color: #fff; margin-top: 10px; }
+        body { background: #121212; color: #fff; display: flex; flex-direction: column; align-items: center; padding: 20px; font-family: sans-serif; }
+        canvas { background: #fff; border-radius: 5px; width: 100%; height: 300px; }
+        button { width: 100%; padding: 15px; margin-top: 20px; background: #00ff88; border: none; font-weight: bold; font-size: 1.2rem; border-radius: 5px; }
     </style>
 </head>
 <body>
-    <h2>Assinatura Digital</h2>
-    <p>Por favor, assine abaixo para confirmar a Ordem de Serviço.</p>
+    <h3>Assine Abaixo</h3>
+    <canvas id="pad"></canvas>
+    <button onclick="salvar()">ENVIAR ASSINATURA</button>
     
-    <div class="canvas-container">
-        <canvas id="signature-pad"></canvas>
-    </div>
-
-    <button onclick="salvarAssinatura()" class="btn-save">CONFIRMAR ASSINATURA</button>
-    <button onclick="limpar()" class="btn-clear">Limpar e Tentar Novamente</button>
-
     <script>
-        const urlParams = new URLSearchParams(window.location.search);
-        const osId = urlParams.get('id');
-
-        const canvas = document.querySelector("canvas");
-        const signaturePad = new SignaturePad(canvas, { backgroundColor: 'rgb(255, 255, 255)' });
-
-        function resizeCanvas() {
-            const ratio = Math.max(window.devicePixelRatio || 1, 1);
-            canvas.width = canvas.offsetWidth * ratio;
-            canvas.height = canvas.offsetHeight * ratio;
-            canvas.getContext("2d").scale(ratio, ratio);
+        const canvas = document.getElementById('pad');
+        const pad = new SignaturePad(canvas);
+        const id = new URLSearchParams(window.location.search).get('id');
+        
+        function resize() {
+            canvas.width = canvas.parentElement.offsetWidth;
+            canvas.height = 300;
+            pad.clear();
         }
-        window.addEventListener("resize", resizeCanvas);
-        resizeCanvas();
+        window.addEventListener('resize', resize);
+        resize();
 
-        function limpar() { signaturePad.clear(); }
-
-        async function salvarAssinatura() {
-            if (signaturePad.isEmpty()) return alert("Por favor, assine antes de salvar.");
-            if (!osId) return alert("Erro: ID da OS não encontrado.");
-
-            const assinatura = signaturePad.toDataURL();
-            
-            try {
-                const res = await fetch(`/api/os/${osId}`, {
-                    method: 'PUT',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ assinaturaCliente: assinatura })
-                });
-
-                if (res.ok) {
-                    document.body.innerHTML = "<h2 style='text-align:center; margin-top:50px;'>✅ Assinatura Enviada!<br>O técnico já recebeu no sistema.</h2>";
-                } else {
-                    alert("Erro ao salvar.");
-                }
-            } catch (e) { alert("Erro de conexão."); }
+        async function salvar() {
+            if(pad.isEmpty()) return alert("Assine primeiro!");
+            await fetch(`/api/os/${id}`, {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ assinaturaCliente: pad.toDataURL() })
+            });
+            document.body.innerHTML = "<h1>✅ Enviado! Pode fechar.</h1>";
         }
     </script>
 </body>
