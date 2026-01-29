@@ -13,10 +13,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     
     <script>
-        // Verificação de Auth ao carregar
-        fetch('/api/check-auth').then(r => { 
-            if(r.status !== 200) window.location.href = 'login.html'; 
-        });
+        fetch('/api/check-auth').then(r => { if(r.status !== 200) window.location.href = 'login.html'; });
     </script>
 </head>
 <body>
@@ -29,157 +26,105 @@
     <div class="admin-container">
         
         <div class="tabs">
-            <div class="tab-btn active" onclick="abrirAba('compras')">
-                <i class="fas fa-shopping-cart"></i> Compra de Aparelhos
-            </div>
-            <div class="tab-btn" onclick="abrirAba('os')">
-                <i class="fas fa-tools"></i> Ordem de Serviço
-            </div>
-            <div class="tab-btn" onclick="abrirAba('financeiro')">
-                <i class="fas fa-chart-line"></i> Fluxo de Caixa
-            </div>
+            <div class="tab-btn active" onclick="abrirAba('compras')"><i class="fas fa-shopping-cart"></i> Compra de Aparelhos</div>
+            <div class="tab-btn" onclick="abrirAba('os')"><i class="fas fa-tools"></i> Ordem de Serviço</div>
+            <div class="tab-btn" onclick="abrirAba('financeiro')"><i class="fas fa-chart-line"></i> Fluxo de Caixa</div>
         </div>
 
         <div id="tab-compras" class="tab-content active">
             <div class="form-card">
-                <h3 class="section-title" style="text-align: left; font-size: 1.5rem; margin-bottom: 20px;">Nova Compra / Recibo</h3>
-                
-                <h4 class="sub-title">Dados do Cliente (Vendedor)</h4>
-                <div class="form-group"><label>Nome Completo</label><input type="text" id="nome"></div>
+                <h3 class="section-title">Nova Compra / Recibo</h3>
+                <h4 class="sub-title">Dados do Vendedor</h4>
+                <div class="form-group"><label>Nome</label><input type="text" id="nome"></div>
                 <div class="row-inputs">
                     <div class="form-group"><label>CPF</label><input type="text" id="cpf"></div>
                     <div class="form-group"><label>RG</label><input type="text" id="rg"></div>
                 </div>
                 <div class="form-group"><label>Endereço</label><input type="text" id="endereco"></div>
-
                 <h4 class="sub-title">Dados do Aparelho</h4>
                 <div class="row-inputs">
                     <div class="form-group"><label>Modelo</label><input type="text" id="modelo"></div>
                     <div class="form-group"><label>IMEI</label><input type="text" id="imei"></div>
                 </div>
                 <div class="row-inputs">
-                    <div class="form-group"><label>Valor Pago (R$)</label><input type="number" id="valor"></div>
-                    <div class="form-group"><label>Estado Físico</label>
+                    <div class="form-group"><label>Valor (R$)</label><input type="number" id="valor"></div>
+                    <div class="form-group"><label>Estado</label>
                         <select id="estado">
-                            <option value="Excelente">Excelente (Sem marcas)</option>
-                            <option value="Bom">Bom (Marcas leves)</option>
-                            <option value="Regular">Regular (Arranhões/Trincos)</option>
-                            <option value="Sucata">Sucata (Peças)</option>
+                            <option value="Excelente">Excelente</option>
+                            <option value="Bom">Bom</option>
+                            <option value="Regular">Regular</option>
+                            <option value="Sucata">Sucata</option>
                         </select>
                     </div>
                 </div>
-
-                <label>Assinatura do Vendedor</label>
-                <div class="signature-wrapper">
-                    <canvas id="signature-pad"></canvas>
-                </div>
-                <button id="clear-pad" class="btn-clear">Limpar Assinatura</button>
-
+                <label>Assinatura</label>
+                <div class="signature-wrapper"><canvas id="signature-pad"></canvas></div>
+                <button id="clear-pad" class="btn-clear">Limpar</button>
                 <button class="btn-generate" onclick="gerarPDF()">Salvar e Gerar Recibo</button>
             </div>
-
             <div class="history-section">
-                <h3>Histórico de Compras</h3>
-                <div class="table-responsive">
-                    <table id="history-table">
-                        <thead><tr><th>Data</th><th>Nome</th><th>Aparelho</th><th>Valor</th><th>Ações</th></tr></thead>
-                        <tbody></tbody>
-                    </table>
-                </div>
+                <h3>Histórico</h3>
+                <div class="table-responsive"><table id="history-table"><thead><tr><th>Data</th><th>Nome</th><th>Modelo</th><th>Valor</th><th>Ações</th></tr></thead><tbody></tbody></table></div>
             </div>
         </div>
 
         <div id="tab-os" class="tab-content">
-            <button class="btn-primary" onclick="abrirModalOS()" style="width: 100%; margin-bottom: 20px; padding: 15px;">
+            <button class="btn-primary" onclick="abrirModalOS('novo')" style="width: 100%; margin-bottom: 20px; padding: 15px;">
                 <i class="fas fa-plus"></i> NOVA ORDEM DE SERVIÇO
             </button>
-
             <div class="search-box">
                 <i class="fas fa-search"></i>
-                <input type="text" id="busca-os" placeholder="Buscar por cliente, OS ou IMEI..." onkeyup="filtrarOS()">
+                <input type="text" id="busca-os" placeholder="Buscar..." onkeyup="filtrarOS()">
             </div>
-
             <div class="table-responsive">
                 <table id="os-table">
-                    <thead>
-                        <tr>
-                            <th>OS #</th>
-                            <th>Cliente</th>
-                            <th>Aparelho</th>
-                            <th>Status</th>
-                            <th>Total</th>
-                            <th>Ações</th>
-                        </tr>
-                    </thead>
-                    <tbody id="lista-os-body">
-                        </tbody>
+                    <thead><tr><th>OS #</th><th>Cliente</th><th>Aparelho</th><th>Status</th><th>Total</th><th>Ações</th></tr></thead>
+                    <tbody id="lista-os-body"></tbody>
                 </table>
             </div>
         </div>
 
         <div id="tab-financeiro" class="tab-content">
             <div class="dashboard-cards">
-                <div class="card-dash">
-                    <span>Saldo Atual</span>
-                    <h2 id="dash-saldo">R$ 0,00</h2>
-                </div>
-                <div class="card-dash">
-                    <span>Entradas (Total)</span>
-                    <h2 id="dash-entradas" style="color: #00ff88;">R$ 0,00</h2>
-                </div>
-                <div class="card-dash">
-                    <span>Saídas (Total)</span>
-                    <h2 id="dash-saidas" style="color: #ff4444;">R$ 0,00</h2>
-                </div>
+                <div class="card-dash"><span>Saldo</span><h2 id="dash-saldo">R$ 0,00</h2></div>
+                <div class="card-dash"><span>Entradas</span><h2 id="dash-entradas" style="color:#00ff88;">R$ 0,00</h2></div>
+                <div class="card-dash"><span>Saídas</span><h2 id="dash-saidas" style="color:#ff4444;">R$ 0,00</h2></div>
             </div>
-
             <div class="form-card" style="margin-top: 20px;">
-                <h3>Novo Lançamento Manual</h3>
+                <h3>Novo Lançamento</h3>
                 <div class="row-inputs">
                     <div class="form-group"><label>Descrição</label><input type="text" id="fin-desc"></div>
-                    <div class="form-group"><label>Valor (R$)</label><input type="number" id="fin-valor"></div>
-                    <div class="form-group"><label>Tipo</label>
-                        <select id="fin-tipo">
-                            <option value="entrada">Entrada (+)</option>
-                            <option value="saida">Saída (-)</option>
-                        </select>
-                    </div>
+                    <div class="form-group"><label>Valor</label><input type="number" id="fin-valor"></div>
+                    <div class="form-group"><label>Tipo</label><select id="fin-tipo"><option value="entrada">Entrada</option><option value="saida">Saída</option></select></div>
                 </div>
                 <button class="btn-primary" onclick="salvarFinanceiro()">Adicionar</button>
             </div>
-
-            <div class="table-responsive" style="margin-top: 20px;">
-                <table id="finance-table">
-                    <thead><tr><th>Data</th><th>Descrição</th><th>Tipo</th><th>Valor</th><th>Ação</th></tr></thead>
-                    <tbody></tbody>
-                </table>
-            </div>
+            <div class="table-responsive"><table id="finance-table"><thead><tr><th>Data</th><th>Desc</th><th>Tipo</th><th>Valor</th><th>Ação</th></tr></thead><tbody></tbody></table></div>
         </div>
-
     </div>
 
     <div id="modal-os" class="modal-overlay">
         <div class="modal-content">
             <div class="modal-header">
-                <h2>Nova Ordem de Serviço</h2>
+                <h2 id="modal-os-title">Nova Ordem de Serviço</h2>
                 <button onclick="fecharModalOS()" class="btn-close">&times;</button>
             </div>
             <div class="modal-body">
-                <h4 class="step-title">1. Cliente e Aparelho</h4>
+                <input type="hidden" id="os-id-hidden"> <h4 class="step-title">1. Cliente e Aparelho</h4>
                 <div class="row-inputs">
                     <input type="text" id="os-cliente" placeholder="Nome do Cliente">
-                    <input type="text" id="os-tel" placeholder="WhatsApp / Contato">
+                    <input type="text" id="os-tel" placeholder="WhatsApp">
                 </div>
                 <div class="row-inputs">
                     <input type="text" id="os-modelo" placeholder="Modelo do Aparelho">
-                    <input type="text" id="os-imei" placeholder="IMEI / Serial">
+                    <input type="text" id="os-imei" placeholder="IMEI">
                 </div>
                 <div class="row-inputs">
-                    <input type="text" id="os-senha" placeholder="Senha da Tela (Padrão/Num)">
-                    <input type="text" id="os-acessorios" placeholder="Acessórios (Capa, Chip...)">
+                    <input type="text" id="os-senha" placeholder="Senha">
+                    <input type="text" id="os-acessorios" placeholder="Acessórios">
                 </div>
 
-                <h4 class="step-title">2. Checklist de Entrada (O que funciona?)</h4>
+                <h4 class="step-title">2. Checklist de Entrada</h4>
                 <div class="checklist-grid">
                     <label class="check-item"><input type="checkbox" id="chk-liga"> Liga</label>
                     <label class="check-item"><input type="checkbox" id="chk-tela"> Tela Intacta</label>
@@ -187,31 +132,53 @@
                     <label class="check-item"><input type="checkbox" id="chk-audio"> Áudio</label>
                     <label class="check-item"><input type="checkbox" id="chk-camera"> Câmeras</label>
                     <label class="check-item"><input type="checkbox" id="chk-carga"> Carrega</label>
-                    <label class="check-item"><input type="checkbox" id="chk-wifi"> Wi-Fi/Sinal</label>
+                    <label class="check-item"><input type="checkbox" id="chk-wifi"> Wi-Fi</label>
                     <label class="check-item"><input type="checkbox" id="chk-biom"> Biometria</label>
                 </div>
-                <textarea id="os-obs" placeholder="Observações físicas (riscos, amassados...)" style="width:100%; margin-top:10px; padding:10px; background:#222; border:1px solid #444; color:#fff;"></textarea>
+                <textarea id="os-obs" placeholder="Observações..." style="width:100%; margin-top:10px; padding:10px; background:#222; border:1px solid #444; color:#fff;"></textarea>
 
-                <h4 class="step-title">3. Serviço e Valores</h4>
-                <textarea id="os-defeito" placeholder="Defeito Relatado pelo Cliente" style="width:100%; margin-bottom:10px; padding:10px; background:#222; border:1px solid #444; color:#fff;"></textarea>
+                <h4 class="step-title">3. Valores</h4>
+                <textarea id="os-defeito" placeholder="Defeito Relatado"></textarea>
                 <div class="row-inputs">
-                    <input type="number" id="os-pecas" placeholder="Custo Peças (R$)">
-                    <input type="number" id="os-mao" placeholder="Mão de Obra (R$)">
+                    <input type="number" id="os-pecas" placeholder="Custo Peças">
+                    <input type="number" id="os-mao" placeholder="Mão de Obra">
                 </div>
                 <div class="row-inputs">
-                    <input type="number" id="os-desconto" placeholder="Desconto (R$)">
-                    <input type="number" id="os-sinal" placeholder="Sinal / Entrada (R$)">
+                    <input type="number" id="os-desconto" placeholder="Desconto">
+                    <input type="number" id="os-sinal" placeholder="Sinal">
                 </div>
+                <div class="total-display">Total: R$ <span id="os-total-display">0,00</span></div>
+
+                <h4 class="step-title" style="margin-top: 20px;">4. Assinatura do Cliente</h4>
                 
-                <div class="total-display">Total Estimado: R$ <span id="os-total-display">0,00</span></div>
+                <div style="display:flex; gap:10px; margin-bottom:10px;">
+                    <button onclick="mostrarTabAssinatura('pc')" class="btn-action" style="flex:1;">Assinar no PC</button>
+                    <button onclick="gerarQRCodeOS()" class="btn-action" style="flex:1;">Gerar QR Code (Celular)</button>
+                </div>
+
+                <div id="area-assinatura-pc" style="display:block;">
+                    <div class="signature-wrapper" style="border: 1px solid #555;">
+                        <canvas id="signature-pad-os"></canvas>
+                    </div>
+                    <button onclick="limparAssinaturaOS()" class="btn-clear" style="width:auto; padding:5px 10px;">Limpar</button>
+                </div>
+
+                <div id="area-assinatura-qr" style="display:none; text-align:center; padding: 20px; background: #fff; border-radius: 10px;">
+                    <div id="qrcode-os"></div>
+                    <p style="color:#000; margin-top:10px;">Peça para o cliente escanear.</p>
+                    <p style="color:#000; font-size: 0.8rem;">O sistema detectará a assinatura automaticamente.</p>
+                </div>
+
+                <div id="status-assinatura" style="color: #00ff88; font-weight: bold; margin-top: 10px; display: none;">
+                    ✅ Assinado Digitalmente
+                </div>
+
             </div>
             <div class="modal-footer">
-                <button onclick="salvarOS()" class="btn-primary">GERAR OS</button>
+                <button onclick="salvarOS()" class="btn-primary">SALVAR OS</button>
             </div>
         </div>
     </div>
-
-    <div id="qrcode-container" style="display:none;"></div>
 
     <script src="admin-script.js"></script>
 </body>
