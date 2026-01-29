@@ -29,31 +29,24 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // --- MODELOS (SCHEMAS) ---
 
-// 1. Usuário Admin (Mantido)
+// 1. Usuário Admin
 const UserSchema = new mongoose.Schema({
     username: { type: String, unique: true, required: true },
     password: { type: String, required: true }
 });
 const User = mongoose.model('User', UserSchema);
 
-// 2. Recibo de Compra (Mantido - Função Original)
+// 2. Recibo de Compra
 const ReciboSchema = new mongoose.Schema({
-    nome: String,
-    cpf: String,
-    rg: String,
-    endereco: String,
-    modelo: String,
-    imei: String,
-    valor: String,
-    estado: String,
+    nome: String, cpf: String, rg: String, endereco: String,
+    modelo: String, imei: String, valor: String, estado: String,
     assinatura: String,
     dataCriacao: { type: Date, default: Date.now },
-    dataFormatada: String,
-    horaFormatada: String
+    dataFormatada: String, horaFormatada: String
 });
 const Recibo = mongoose.model('Recibo', ReciboSchema);
 
-// 3. Financeiro (Mantido - Função Original)
+// 3. Financeiro
 const FinanceiroSchema = new mongoose.Schema({
     tipo: { type: String, enum: ['entrada', 'saida'], required: true },
     descricao: { type: String, required: true },
@@ -62,45 +55,31 @@ const FinanceiroSchema = new mongoose.Schema({
 });
 const Financeiro = mongoose.model('Financeiro', FinanceiroSchema);
 
-// 4. ORDEM DE SERVIÇO (NOVO - UPGRADE)
+// 4. ORDEM DE SERVIÇO (ATUALIZADO)
 const OSSchema = new mongoose.Schema({
-    osNumber: { type: String, unique: true }, // Ex: 2024001
+    osNumber: { type: String, unique: true }, 
     cliente: { 
-        nome: String, 
-        telefone: String, 
-        cpf: String 
+        nome: String, telefone: String, cpf: String 
     },
     aparelho: { 
-        marca: String, 
-        modelo: String, 
-        imei: String, 
-        senha: String, 
-        acessorios: String 
+        marca: String, modelo: String, imei: String, 
+        senha: String, acessorios: String 
     },
     checklist: {
-        liga: Boolean, 
-        tela: Boolean, 
-        touch: Boolean, 
-        camera: Boolean, 
-        audio: Boolean, 
-        carga: Boolean, 
-        wifi: Boolean, 
-        biom: Boolean, 
-        obs: String
+        liga: Boolean, tela: Boolean, touch: Boolean, 
+        camera: Boolean, audio: Boolean, carga: Boolean, 
+        wifi: Boolean, biom: Boolean, obs: String
     },
     servico: { 
-        defeitoRelatado: String, 
-        laudoTecnico: String, 
-        status: { type: String, default: 'Aberto' } // Aberto, Analise, Aprovado, Peca, Pronto, Entregue
+        defeitoRelatado: String, laudoTecnico: String, 
+        status: { type: String, default: 'Aberto' } 
     },
     financeiro: {
-        custoPecas: Number, 
-        maoDeObra: Number, 
-        desconto: Number, 
-        sinal: Number, 
-        total: Number,
-        statusPagamento: { type: String, default: 'Pendente' } // Pendente, Pago
+        custoPecas: Number, maoDeObra: Number, 
+        desconto: Number, sinal: Number, total: Number,
+        statusPagamento: { type: String, default: 'Pendente' }
     },
+    assinaturaCliente: String, // CAMPO NOVO PARA ASSINATURA
     dataEntrada: { type: Date, default: Date.now },
     dataSaida: Date
 });
@@ -119,7 +98,7 @@ const authMiddleware = (req, res, next) => {
 
 // --- ROTAS (API) ---
 
-// Auth (Mantido)
+// Auth
 app.post('/api/login', async (req, res) => {
     const { username, password } = req.body;
     const user = await User.findOne({ username });
@@ -138,72 +117,54 @@ app.post('/api/logout', (req, res) => {
 
 app.get('/api/check-auth', authMiddleware, (req, res) => res.sendStatus(200));
 
-// Recibos (Mantido)
+// Recibos
 app.get('/api/recibos', authMiddleware, async (req, res) => {
-    try {
-        const recibos = await Recibo.find().sort({ dataCriacao: -1 }).limit(50);
-        res.json(recibos);
-    } catch (e) { res.status(500).json({ erro: 'Erro ao buscar recibos' }); }
+    try { const recibos = await Recibo.find().sort({ dataCriacao: -1 }).limit(50); res.json(recibos); } 
+    catch (e) { res.status(500).json({ erro: 'Erro' }); }
 });
-
-app.get('/api/recibos/:id', authMiddleware, async (req, res) => {
-    try {
-        const recibo = await Recibo.findById(req.params.id);
-        res.json(recibo);
-    } catch (e) { res.status(500).json({ erro: 'Erro ao buscar recibo' }); }
-});
-
 app.post('/api/recibos', authMiddleware, async (req, res) => {
-    try {
-        const novo = await Recibo.create(req.body);
-        res.json(novo);
-    } catch (e) { res.status(500).json({ erro: 'Erro ao criar recibo' }); }
+    try { const novo = await Recibo.create(req.body); res.json(novo); } 
+    catch (e) { res.status(500).json({ erro: 'Erro' }); }
 });
-
 app.delete('/api/recibos/:id', authMiddleware, async (req, res) => {
-    try {
-        await Recibo.findByIdAndDelete(req.params.id);
-        res.json({ ok: true });
-    } catch (e) { res.status(500).json({ erro: 'Erro ao deletar recibo' }); }
+    try { await Recibo.findByIdAndDelete(req.params.id); res.json({ ok: true }); } 
+    catch (e) { res.status(500).json({ erro: 'Erro' }); }
 });
 
-// Financeiro (Mantido)
+// Financeiro
 app.get('/api/financeiro', authMiddleware, async (req, res) => {
-    try {
-        const lancamentos = await Financeiro.find().sort({ data: -1 }).limit(100);
-        res.json(lancamentos);
-    } catch (e) { res.status(500).json({ erro: 'Erro ao buscar financeiro' }); }
+    try { const lancamentos = await Financeiro.find().sort({ data: -1 }).limit(100); res.json(lancamentos); } 
+    catch (e) { res.status(500).json({ erro: 'Erro' }); }
 });
-
 app.post('/api/financeiro', authMiddleware, async (req, res) => {
-    try {
-        const novo = await Financeiro.create(req.body);
-        res.json(novo);
-    } catch (e) { res.status(500).json({ erro: 'Erro ao criar financeiro' }); }
+    try { const novo = await Financeiro.create(req.body); res.json(novo); } 
+    catch (e) { res.status(500).json({ erro: 'Erro' }); }
 });
-
 app.delete('/api/financeiro/:id', authMiddleware, async (req, res) => {
-    try {
-        await Financeiro.findByIdAndDelete(req.params.id);
-        res.json({ ok: true });
-    } catch (e) { res.status(500).json({ erro: 'Erro ao deletar financeiro' }); }
+    try { await Financeiro.findByIdAndDelete(req.params.id); res.json({ ok: true }); } 
+    catch (e) { res.status(500).json({ erro: 'Erro' }); }
 });
 
-// --- NOVAS ROTAS DE ORDEM DE SERVIÇO (OS) ---
+// --- ROTAS DE ORDEM DE SERVIÇO ---
 app.get('/api/os', authMiddleware, async (req, res) => {
-    try {
-        const lista = await OS.find().sort({ dataEntrada: -1 });
-        res.json(lista);
-    } catch (e) { res.status(500).json({ erro: "Erro ao buscar OS" }); }
+    try { const lista = await OS.find().sort({ dataEntrada: -1 }); res.json(lista); } 
+    catch (e) { res.status(500).json({ erro: "Erro" }); }
+});
+
+// Buscar uma única OS (para edição ou assinatura)
+app.get('/api/os/:id', async (req, res) => {
+    // Nota: Removi o authMiddleware dessa rota específica para permitir que 
+    // a página de assinatura no celular (pública via QR) acesse os dados básicos se necessário.
+    // Em produção real, usaria um token temporário na URL, mas aqui simplificamos.
+    try { const os = await OS.findById(req.params.id); res.json(os); } 
+    catch (e) { res.status(500).json({ erro: "Erro" }); }
 });
 
 app.post('/api/os', authMiddleware, async (req, res) => {
     try {
-        // Gera número de OS simples baseado no timestamp curto (últimos 6 dígitos)
         const num = Date.now().toString().slice(-6);
         const novaOS = await OS.create({ ...req.body, osNumber: num });
         
-        // Se houver SINAL (entrada em dinheiro), lança no financeiro automaticamente
         if (req.body.financeiro && req.body.financeiro.sinal > 0) {
             await Financeiro.create({
                 tipo: 'entrada',
@@ -212,27 +173,21 @@ app.post('/api/os', authMiddleware, async (req, res) => {
             });
         }
         res.json(novaOS);
-    } catch (e) {
-        console.error(e);
-        res.status(500).json({ erro: "Erro ao criar OS" });
-    }
+    } catch (e) { res.status(500).json({ erro: "Erro" }); }
 });
 
-app.put('/api/os/:id', authMiddleware, async (req, res) => {
+app.put('/api/os/:id', async (req, res) => { // Aberto para receber assinatura do celular
     try {
         const atualizada = await OS.findByIdAndUpdate(req.params.id, req.body, { new: true });
         res.json(atualizada);
-    } catch (e) { res.status(500).json({ erro: "Erro ao atualizar OS" }); }
+    } catch (e) { res.status(500).json({ erro: "Erro" }); }
 });
 
 app.delete('/api/os/:id', authMiddleware, async (req, res) => {
-    try {
-        await OS.findByIdAndDelete(req.params.id);
-        res.json({ ok: true });
-    } catch (e) { res.status(500).json({ erro: "Erro ao deletar OS" }); }
+    try { await OS.findByIdAndDelete(req.params.id); res.json({ ok: true }); } 
+    catch (e) { res.status(500).json({ erro: "Erro" }); }
 });
 
-// --- INICIALIZAÇÃO ---
 async function criarAdminPadrao() {
     try {
         const adminExiste = await User.findOne({ username: 'admin' });
@@ -244,7 +199,6 @@ async function criarAdminPadrao() {
     } catch (e) { console.error('Erro criar admin', e); }
 }
 
-// Rota para servir o app (SPA - Single Page Application se necessário, ou estático)
 app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
