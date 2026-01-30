@@ -81,12 +81,23 @@ const OSSchema = new mongoose.Schema({
         senha: String,
         acessorios: String
     },
+    // CHECKLIST EXPANDIDO (VERSÃO COMPLETA)
     checklist: {
-        tela: String, bateria: String, carcaca: String, botoes: String,
-        cameras: String, som: String, conectividade: String, sensores: String
+        tela: String,
+        bateria: String,
+        conector: String, // Novo
+        cameras: String,
+        biometria: String, // Novo (FaceID/Digital)
+        som: String,
+        microfone: String, // Novo
+        botoes: String,
+        rede: String,
+        carcaca: String,
+        sensores: String,
+        outros: String
     },
     servico: String,
-    estadoGeral: String, // <--- NOVO: Opções detalhadas (iCloud, etc) na OS
+    estadoGeral: String,
     defeitoRelatado: String,
     valor: String, 
     status: { type: String, default: 'Aberto' }, 
