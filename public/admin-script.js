@@ -7,7 +7,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // ============================================
-    // === 1. MÓDULO ORDEM DE SERVIÇO (NOVO) ===
+    // === 1. ORDEM DE SERVIÇO (OS) ===
     // ============================================
 
     let osAtualID = null;
@@ -63,11 +63,9 @@ document.addEventListener('DOMContentLoaded', () => {
             area.style.display = 'block';
             qrDiv.innerHTML = "";
             
-            // URL que o cliente vai acessar no celular
             const urlAssinatura = `${window.location.origin}/assinatura-os.html?id=${os._id}`;
             new QRCode(qrDiv, { text: urlAssinatura, width: 200, height: 200 });
 
-            // Rolar até o QR code
             area.scrollIntoView({ behavior: 'smooth' });
             
             carregarOSHistory();
@@ -95,6 +93,32 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch(e) { alert("Erro ao verificar assinatura."); }
     };
 
+    // --- NOVA LÓGICA: CONCLUIR OS ---
+    window.concluirOS = async (id) => {
+        const valorStr = prompt("Qual o valor final do serviço? (Este valor entrará no Financeiro)");
+        if(valorStr === null) return; // Cancelou
+
+        const valor = parseFloat(valorStr.replace(',', '.'));
+        if(isNaN(valor) || valor <= 0) {
+            return alert("Valor inválido. Digite um número (ex: 150.00)");
+        }
+
+        try {
+            const res = await fetch(`/api/os/${id}/concluir`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ valorFinal: valor })
+            });
+            
+            if(res.ok) {
+                alert(`✅ Serviço Concluído! R$ ${valor.toFixed(2)} lançado no Financeiro.`);
+                carregarOSHistory();
+            } else {
+                alert("Erro ao concluir OS.");
+            }
+        } catch(e) { alert("Erro de conexão: " + e.message); }
+    };
+
     window.carregarOSHistory = async () => {
         const tb = document.querySelector('#os-table tbody');
         tb.innerHTML = "<tr><td colspan='6'>Carregando...</td></tr>";
@@ -105,15 +129,27 @@ document.addEventListener('DOMContentLoaded', () => {
             lista.forEach(os => {
                 const tr = document.createElement('tr');
                 const data = new Date(os.dataEntrada).toLocaleDateString('pt-BR');
+                
+                let statusBadge = "";
+                let btnConcluir = "";
+
+                if(os.status === "Concluido") {
+                    statusBadge = `<span style="color:#00ff88; font-weight:bold;">CONCLUÍDO</span>`;
+                } else {
+                    statusBadge = `<span style="color:#fff;">${os.status}</span>`;
+                    // Botão para concluir só aparece se não estiver concluído
+                    btnConcluir = `<button class="btn-icon btn-conclude" onclick="concluirOS('${os._id}')" title="Concluir e Cobrar"><i class="fas fa-check"></i></button>`;
+                }
+
                 tr.innerHTML = `
                     <td>#${os.numeroOS ? os.numeroOS.toString().slice(-4) : '---'}</td>
                     <td>${data}</td>
                     <td>${os.cliente.nome}</td>
-                    <td>${os.aparelho.modelo}</td>
-                    <td><span class="brand-badge">${os.status}</span></td>
+                    <td>${statusBadge}</td>
                     <td>
-                        <button class="btn-icon btn-action" onclick="reimprimirOS('${os._id}')"><i class="fas fa-file-pdf"></i></button>
-                        <button class="btn-icon btn-danger" onclick="deletarOS('${os._id}')"><i class="fas fa-trash"></i></button>
+                        ${btnConcluir}
+                        <button class="btn-icon btn-action" onclick="reimprimirOS('${os._id}')" title="Baixar PDF"><i class="fas fa-file-pdf"></i></button>
+                        <button class="btn-icon btn-danger" onclick="deletarOS('${os._id}')" title="Excluir"><i class="fas fa-trash"></i></button>
                     </td>
                 `;
                 tb.appendChild(tr);
@@ -146,7 +182,7 @@ document.addEventListener('DOMContentLoaded', () => {
         osAtualID = null;
     }
 
-    // --- GERADOR DE PDF DA OS (ESTILO NOVO) ---
+    // --- GERADOR PDF OS ---
     function gerarPDFOS(os) {
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF();
@@ -172,8 +208,8 @@ document.addEventListener('DOMContentLoaded', () => {
         doc.setFont("helvetica", "normal");
         doc.text(`Modelo: ${os.aparelho.modelo}`, 15, y);
         doc.text(`IMEI: ${os.aparelho.imei}`, 100, y); y+=7;
-        doc.text(`Senha Tela: ${os.aparelho.senha || 'Sem senha'}`, 15, y); y+=7;
-        doc.text(`Acessórios: ${os.aparelho.acessorios || 'Nenhum'}`, 15, y); y+=10;
+        doc.text(`Senha: ${os.aparelho.senha || 'Sem senha'}`, 15, y);
+        doc.text(`Acessórios: ${os.aparelho.acessorios || 'Nenhum'}`, 100, y); y+=10;
         
         doc.setFont("helvetica", "bold"); doc.text("Defeito Relatado:", 15, y); y+=7;
         doc.setFont("helvetica", "normal");
@@ -195,7 +231,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const termos = [
             "1. A garantia cobre apenas o serviço executado e peças trocadas por 90 dias.",
             "2. Não nos responsabilizamos por perda de dados. Faça backup.",
-            "3. Aparelhos não retirados em 90 dias serão vendidos para custear despesas (Art. 1.275 CC)."
+            "3. Aparelhos não retirados em 90 dias serão vendidos para custear despesas."
         ];
         termos.forEach(t => { doc.text(t, 15, y); y+=5; });
 
@@ -216,7 +252,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     // ============================================
-    // === 2. MÓDULO RECIBO (LAYOUT ORIGINAL RESTAURADO) ===
+    // === 2. MÓDULO RECIBO (COMPRA/VENDA) ===
     // ============================================
     const canvas = document.getElementById('signature-pad');
     if(canvas) {
@@ -237,9 +273,10 @@ document.addEventListener('DOMContentLoaded', () => {
         window.gerarPDF = async () => {
              if (signaturePad.isEmpty()) { alert("Assinatura obrigatória!"); return; }
              const btn = document.querySelector('#tab-recibo .btn-generate');
-             const txt = btn.innerHTML; btn.innerHTML = "Salvando..."; btn.disabled = true;
+             const txt = btn.innerHTML; btn.innerHTML = "Processando..."; btn.disabled = true;
 
              const dados = {
+                tipoOperacao: document.getElementById('tipo-recibo').value, // CAMPO NOVO
                 nome: document.getElementById('nome').value || "---",
                 cpf: document.getElementById('cpf').value || "---",
                 rg: document.getElementById('rg').value || "---",
@@ -256,8 +293,8 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 const res = await fetch('/api/recibos', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(dados) });
                 const salvo = await res.json();
-                gerarQRCodeEPDF(salvo); // CHAMA A FUNÇÃO ORIGINAL RESTAURADA
-                alert("Recibo Salvo e Baixado!");
+                gerarQRCodeEPDF(salvo);
+                alert(`Recibo Salvo! Lançado como ${dados.tipoOperacao.toUpperCase()} no Financeiro.`);
                 signaturePad.clear();
                 loadHistory();
             } catch (e) { alert("Erro: " + e.message); } 
@@ -265,35 +302,32 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
-    // === FUNÇÃO PARA REIMPRIMIR (CHAMA O LAYOUT ORIGINAL) ===
     window.reimprimirRecibo = async (id) => {
         try {
             const res = await fetch(`/api/recibos/${id}`);
             if(!res.ok) throw new Error("Erro ao buscar");
             const dados = await res.json();
-            gerarQRCodeEPDF(dados); // Usa o layout original
+            gerarQRCodeEPDF(dados);
         } catch(e) { alert("Erro ao reimprimir: " + e.message); }
     };
 
-    // === LAYOUT ORIGINAL RESTAURADO ===
     function gerarQRCodeEPDF(dados) {
-        // Gera o QR Code num elemento oculto
         let container = document.getElementById("qrcode-container");
         if(!container) {
-            // Cria container temporário se não existir
             container = document.createElement('div');
             container.id = "qrcode-container";
             container.style.display = "none";
             document.body.appendChild(container);
         }
-        container.innerHTML = ""; // Limpa anterior
+        container.innerHTML = "";
         
         const id = dados._id || Date.now();
-        const qrData = `NEXUS\nID:${id}\nIMEI:${dados.imei}\n$${dados.valor}`;
+        // Inclui se é VENDA ou COMPRA no QR Code
+        const tipoLabel = dados.tipoOperacao === 'compra' ? 'COMPRA' : 'VENDA';
+        const qrData = `NEXUS|${tipoLabel}|ID:${id}|IMEI:${dados.imei}|$${dados.valor}`;
         
         new QRCode(container, { text: qrData, width: 100, height: 100 });
         
-        // Pequeno delay para garantir que o QR Code foi desenhado no Canvas antes de gerar o PDF
         setTimeout(() => {
             const canvasQr = container.querySelector('canvas');
             const imgQr = canvasQr ? canvasQr.toDataURL() : null;
@@ -301,7 +335,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 100);
     }
 
-    // === ESTRUTURA EXATA DO PDF ORIGINAL ===
+    // === LAYOUT ORIGINAL NEXUS DIGITAL (MANTIDO) ===
     window.criarArquivoPDF = (d, qr) => {
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF();
@@ -314,17 +348,18 @@ document.addEventListener('DOMContentLoaded', () => {
         doc.text("Destrava Cell | Soluções Mobile", 105, 26, null, null, "center");
         doc.line(10, 30, 200, 30);
 
-        doc.setFontSize(14); doc.setFont("helvetica", "bold");
-        doc.text("RECIBO DE VENDA", 105, 40, null, null, "center");
+        // Ajusta Título conforme o tipo
+        const titulo = d.tipoOperacao === 'compra' ? "RECIBO DE COMPRA (AQUISIÇÃO)" : "RECIBO DE VENDA";
         
-        // QR Code no topo à direita
+        doc.setFontSize(14); doc.setFont("helvetica", "bold");
+        doc.text(titulo, 105, 40, null, null, "center");
+        
         if(qr) doc.addImage(qr, 'PNG', 170, 10, 30, 30);
 
         let y = 55;
-        // Campos de Dados
         const campos = [
-            { t: "DADOS DA TRANSAÇÃO", c: [`Data: ${d.dataFormatada}`, `Valor: R$ ${d.valor}`] },
-            { t: "VENDEDOR", c: [`Nome: ${d.nome}`, `CPF: ${d.cpf}`, `Endereço: ${d.endereco}`] },
+            { t: "DADOS DA TRANSAÇÃO", c: [`Data: ${d.dataFormatada}`, `Valor: R$ ${d.valor}`, `Tipo: ${d.tipoOperacao.toUpperCase()}`] },
+            { t: "PESSOA (CLIENTE/VENDEDOR)", c: [`Nome: ${d.nome}`, `CPF: ${d.cpf}`, `Endereço: ${d.endereco}`] },
             { t: "APARELHO", c: [`Modelo: ${d.modelo}`, `IMEI: ${d.imei}`, `Estado: ${d.estado}`] }
         ];
 
@@ -342,26 +377,21 @@ document.addEventListener('DOMContentLoaded', () => {
         
         doc.setFont("helvetica", "normal"); doc.setFontSize(8);
         const termos = [
-            "1. O VENDEDOR declara ser o proprietário legítimo e que o bem é LÍCITO.",
-            "2. O VENDEDOR isenta o Grupo NEXUS DIGITAL de responsabilidade civil/criminal.",
-            "3. O VENDEDOR assume responsabilidade caso o aparelho entre em Blacklist (Roubo/Furto).",
+            "1. As partes declaram que a transação é lícita e de boa fé.",
+            "2. O aparelho foi verificado e testado no ato da transação.",
+            "3. Em caso de bloqueio futuro (Blacklist), o responsável legal será acionado.",
             "4. A posse é transferida neste ato, em caráter irrevogável."
         ];
         termos.forEach(t => { doc.text(t, 20, y); y+=5; });
         
         y+=20;
         if(d.assinatura) { 
-            doc.rect(60, y-5, 90, 30); // Caixa da assinatura
+            doc.rect(60, y-5, 90, 30); 
             doc.addImage(d.assinatura, 'PNG', 75, y, 60, 25); 
         }
-        y+=30; doc.text("ASSINATURA DO VENDEDOR", 105, y, null, null, "center");
+        y+=30; doc.text("ASSINATURA", 105, y, null, null, "center");
         
-        const avisoLegal = "Aviso Legal: A Destrava Cell repudia qualquer atividade ilícita. Realizamos consulta prévia de IMEI em todos os aparelhos. Não compramos e não desbloqueamos aparelhos com restrição de roubo ou furto (Blacklist).";
-        doc.setFontSize(7); doc.setTextColor(80);
-        doc.text(avisoLegal, 105, 285, { maxWidth: 180, align: "center" });
-
-        const safeName = d.nome ? d.nome.split(' ')[0].replace(/[^a-z0-9]/gi, '') : 'Recibo';
-        doc.save(`Recibo_${safeName}.pdf`);
+        doc.save(`Recibo_${d.modelo}.pdf`);
     };
 
     async function loadHistory() {
@@ -372,10 +402,13 @@ document.addEventListener('DOMContentLoaded', () => {
             const lista = await res.json();
             tb.innerHTML = "";
             lista.forEach(i => {
-                // Aqui estão os botões com o estilo novo
+                const tipoDisplay = i.tipoOperacao === 'compra' 
+                    ? '<span style="color:#ff4444; font-weight:bold;">COMPRA (SAÍDA)</span>' 
+                    : '<span style="color:#00ff88; font-weight:bold;">VENDA (ENTRADA)</span>';
+
                 tb.innerHTML += `
                 <tr>
-                    <td>${i.dataFormatada}</td>
+                    <td>${tipoDisplay}</td>
                     <td>${i.nome}</td>
                     <td>${i.modelo}</td>
                     <td>R$ ${i.valor}</td>
@@ -391,8 +424,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     // ============================================
-    // === 3. MÓDULO FINANCEIRO (MANTIDO) ===
+    // === 3. FINANCEIRO & PREÇOS ===
     // ============================================
+    
     window.carregarFinanceiro = async () => {
         const tb = document.querySelector('#finance-table tbody');
         try {
@@ -403,6 +437,7 @@ document.addEventListener('DOMContentLoaded', () => {
             lista.forEach(item => {
                 const val = parseFloat(item.valor);
                 if(item.tipo === 'entrada') { ent += val; total += val; } else { sai += val; total -= val; }
+                
                 tb.innerHTML += `<tr><td>${new Date(item.data).toLocaleDateString('pt-BR')}</td><td>${item.descricao}</td>
                 <td style="color:${item.tipo==='entrada'?'#0f8':'#f44'}">R$ ${val.toFixed(2)}</td>
                 <td><button class="btn-icon btn-danger" onclick="deletarFin('${item._id}')"><i class="fas fa-trash"></i></button></td></tr>`;
@@ -423,17 +458,12 @@ document.addEventListener('DOMContentLoaded', () => {
     window.deletarFin = async(id) => { await fetch(`/api/financeiro/${id}`, {method:'DELETE'}); carregarFinanceiro(); };
 
 
-    // ============================================
-    // === 4. TABELA DE PREÇOS (MANTER SUA LISTA AQUI) ===
-    // ============================================
-    
-    // ATENÇÃO: COLE AQUI A SUA LISTA "bancoPrecos" COMPLETA DO ARQUIVO ORIGINAL
-    // Estou colocando apenas um exemplo para o código não ficar gigante na resposta
+    // === TABELA DE PREÇOS ===
+    // ATENÇÃO: COLE AQUI SUA LISTA COMPLETA DE PREÇOS SE ELA TIVER SIDO APAGADA
     const bancoPrecos = [
         { m: "Samsung", mod: "Galaxy A01 Core", serv: "100", blq: "50", ok: "150" },
         { m: "Samsung", mod: "Galaxy A10", serv: "120", blq: "80", ok: "200" },
-        { m: "Apple", mod: "iPhone 11", serv: "Consultar", blq: "500", ok: "1100" },
-        // ... COLE O RESTANTE DA LISTA AQUI ...
+        // ... COLE O RESTANTE DA SUA LISTA AQUI ...
     ];
 
     const searchInput = document.getElementById('search-input');
