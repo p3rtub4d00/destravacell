@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Painel DestravaCell</title>
+    <title>Admin Nexus Digital</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="style.css">
@@ -11,189 +11,175 @@
     <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.0.0/dist/signature_pad.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-    
-    <script>
-        fetch('/api/check-auth').then(r => { if(r.status !== 200) window.location.href = 'login.html'; });
-    </script>
+    <script>fetch('/api/check-auth').then(r => { if(r.status !== 200) window.location.href = 'login.html'; });</script>
+
+    <style>
+        body { background: #0f0f0f; padding-bottom: 50px; }
+        .admin-container { max-width: 900px; margin: 20px auto; padding: 20px; }
+        
+        .tabs { display: flex; gap: 10px; margin-bottom: 20px; }
+        .tab-btn { flex: 1; padding: 15px; background: #1a1a1a; border: 1px solid #333; color: #888; border-radius: 8px; cursor: pointer; font-weight: bold; text-align: center; transition: 0.3s; }
+        .tab-btn.active { background: var(--primary-color); color: #000; border-color: var(--primary-color); }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; animation: fadeIn 0.3s; }
+
+        .form-card { background: #1a1a1a; padding: 25px; border-radius: 15px; border: 1px solid #333; margin-bottom: 30px; }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; color: #fff; margin-bottom: 8px; font-size: 0.9rem; }
+        input, select, textarea { width: 100%; padding: 12px; background: #111; border: 1px solid #444; color: #fff; border-radius: 8px; font-family: 'Poppins', sans-serif; }
+        
+        .signature-wrapper { background: #fff; border-radius: 8px; overflow: hidden; margin-top: 10px; }
+        canvas { display: block; width: 100%; height: 200px; }
+        
+        .btn-generate { width: 100%; background: var(--primary-color); color: #000; font-weight: 700; padding: 15px; border-radius: 50px; cursor: pointer; margin-top: 30px; border:none; }
+        .btn-clear { background: #ff4444; color: #fff; border: none; padding: 8px; width: 100%; cursor: pointer; margin-top: 5px; border-radius: 4px; }
+
+        /* Estilos Novos OS */
+        .checklist-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; background: #111; padding: 15px; border-radius: 8px; }
+        .check-item { display: flex; align-items: center; gap: 10px; font-size: 0.9rem; color: #ccc; }
+        
+        /* Modal */
+        .modal-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); display:none; justify-content:center; align-items:center; z-index:999; }
+        .modal-content { background:#1a1a1a; width:95%; max-width:600px; max-height:90vh; overflow-y:auto; padding:20px; border-radius:10px; border:1px solid #333; }
+        
+        /* Tabela */
+        table { width: 100%; border-collapse: collapse; color: #ccc; font-size: 0.9rem; background: #1a1a1a; margin-top: 20px; }
+        th, td { padding: 12px; border-bottom: 1px solid #333; text-align: left; }
+        th { background: #222; color: var(--primary-color); }
+        .btn-delete { color: #ff4444; background: transparent; border: 1px solid #ff4444; padding: 5px; cursor: pointer; }
+        
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    </style>
 </head>
 <body>
-
-    <div class="navbar-admin">
-        <div class="logo">Destrava<span class="highlight">Cell</span> Admin</div>
-        <button onclick="logout()" class="btn-delete" style="border: 1px solid #ff4444; color: #ff4444;">SAIR</button>
+    <div class="navbar-admin" style="padding: 20px; display:flex; justify-content:space-between; align-items:center; background:#111;">
+        <div style="font-size:1.5rem; font-weight:bold; color:#fff;">Nexus<span style="color:var(--primary-color);">Digital</span></div>
+        <button onclick="logout()" style="background:transparent; border:1px solid #ff4444; color:#ff4444; padding:8px 15px; border-radius:5px; cursor:pointer;">SAIR</button>
     </div>
 
     <div class="admin-container">
         
         <div class="tabs">
-            <div id="btn-tab-compras" class="tab-btn active" onclick="abrirAba('compras')">
-                <i class="fas fa-shopping-cart"></i> Compras
-            </div>
-            <div id="btn-tab-os" class="tab-btn" onclick="abrirAba('os')">
-                <i class="fas fa-tools"></i> Ordem de Serviço
-            </div>
-            <div id="btn-tab-financeiro" class="tab-btn" onclick="abrirAba('financeiro')">
-                <i class="fas fa-chart-line"></i> Caixa
-            </div>
+            <div id="btn-compras" class="tab-btn active" onclick="abrirAba('compras')">Compras</div>
+            <div id="btn-os" class="tab-btn" onclick="abrirAba('os')">Ordem de Serviço</div>
+            <div id="btn-financeiro" class="tab-btn" onclick="abrirAba('financeiro')">Financeiro</div>
         </div>
 
         <div id="tab-compras" class="tab-content active">
             <div class="form-card">
-                <h3 class="section-title">Nova Compra (Recibo)</h3>
-                
-                <h4 class="sub-title">Vendedor</h4>
+                <h3>Nova Compra / Recibo</h3>
                 <div class="form-group"><label>Nome</label><input type="text" id="nome"></div>
-                <div class="row-inputs">
-                    <div class="form-group"><label>CPF</label><input type="text" id="cpf"></div>
-                    <div class="form-group"><label>RG</label><input type="text" id="rg"></div>
+                <div style="display:flex; gap:10px;">
+                    <div class="form-group" style="flex:1;"><label>CPF</label><input type="text" id="cpf"></div>
+                    <div class="form-group" style="flex:1;"><label>RG</label><input type="text" id="rg"></div>
                 </div>
                 <div class="form-group"><label>Endereço</label><input type="text" id="endereco"></div>
-
-                <h4 class="sub-title">Aparelho</h4>
-                <div class="row-inputs">
-                    <div class="form-group"><label>Modelo</label><input type="text" id="modelo"></div>
-                    <div class="form-group"><label>IMEI</label><input type="text" id="imei"></div>
+                
+                <h4 style="color:var(--primary-color); margin:20px 0 10px 0;">Aparelho</h4>
+                <div style="display:flex; gap:10px;">
+                    <div class="form-group" style="flex:1;"><label>Modelo</label><input type="text" id="modelo"></div>
+                    <div class="form-group" style="flex:1;"><label>IMEI</label><input type="text" id="imei"></div>
                 </div>
-                <div class="row-inputs">
-                    <div class="form-group"><label>Valor Pago (R$)</label><input type="number" id="valor"></div>
-                    <div class="form-group"><label>Estado</label>
-                        <select id="estado">
-                            <option value="Excelente">Excelente</option>
-                            <option value="Bom">Bom</option>
-                            <option value="Regular">Regular</option>
-                            <option value="Sucata">Sucata</option>
-                        </select>
+                <div style="display:flex; gap:10px;">
+                    <div class="form-group" style="flex:1;"><label>Valor (R$)</label><input type="text" id="valor"></div>
+                    <div class="form-group" style="flex:1;"><label>Estado</label>
+                        <select id="estado"><option>Excelente</option><option>Bom</option><option>Regular</option><option>Sucata</option></select>
                     </div>
                 </div>
 
-                <label>Assinatura do Vendedor</label>
-                <div class="signature-wrapper">
-                    <canvas id="signature-pad"></canvas>
-                </div>
-                <button onclick="limparPadCompras()" class="btn-clear">Limpar Assinatura</button>
-
-                <button class="btn-generate" onclick="gerarPDFRecibo()">SALVAR E IMPRIMIR</button>
+                <label>Assinatura Vendedor</label>
+                <div class="signature-wrapper"><canvas id="signature-pad"></canvas></div>
+                <button onclick="padRecibo.clear()" class="btn-clear">Limpar</button>
+                <button class="btn-generate" onclick="gerarPDF()">GERAR RECIBO</button>
             </div>
-
-            <div class="history-section">
-                <h3>Histórico de Compras</h3>
-                <div class="table-responsive">
-                    <table id="history-table">
-                        <thead><tr><th>Data</th><th>Nome</th><th>Modelo</th><th>Valor</th><th>Ação</th></tr></thead>
-                        <tbody></tbody>
-                    </table>
-                </div>
+            
+            <div style="margin-top:30px;">
+                <h3>Histórico</h3>
+                <table><tbody id="lista-recibos"></tbody></table>
             </div>
         </div>
 
         <div id="tab-os" class="tab-content">
-            <button class="btn-primary" onclick="abrirModalOS('novo')" style="width: 100%; margin-bottom: 20px; padding: 15px;">
-                <i class="fas fa-plus"></i> NOVA OS
-            </button>
-            
-            <div class="table-responsive">
-                <table id="os-table">
-                    <thead><tr><th>OS #</th><th>Cliente</th><th>Aparelho</th><th>Status</th><th>Total</th><th>Ações</th></tr></thead>
-                    <tbody id="lista-os-body"></tbody>
-                </table>
-            </div>
+            <button class="btn-generate" onclick="abrirModalOS('novo')" style="margin-top:0; margin-bottom:20px;">NOVA ORDEM DE SERVIÇO</button>
+            <table>
+                <thead><tr><th>OS</th><th>Cliente</th><th>Modelo</th><th>Status</th><th>Ação</th></tr></thead>
+                <tbody id="lista-os"></tbody>
+            </table>
         </div>
 
         <div id="tab-financeiro" class="tab-content">
-            <div class="dashboard-cards">
-                <div class="card-dash"><span>Saldo</span><h2 id="dash-saldo">R$ 0,00</h2></div>
-                <div class="card-dash"><span>Entradas</span><h2 id="dash-entradas" style="color:#00ff88;">R$ 0,00</h2></div>
-                <div class="card-dash"><span>Saídas</span><h2 id="dash-saidas" style="color:#ff4444;">R$ 0,00</h2></div>
-            </div>
-
-            <div class="form-card" style="margin-top: 20px;">
-                <h3>Lançamento Manual</h3>
-                <div class="row-inputs">
-                    <div class="form-group"><label>Descrição</label><input type="text" id="fin-desc"></div>
-                    <div class="form-group"><label>Valor</label><input type="number" id="fin-valor"></div>
-                    <div class="form-group"><label>Tipo</label>
-                        <select id="fin-tipo"><option value="entrada">Entrada (+)</option><option value="saida">Saída (-)</option></select>
-                    </div>
+            <div style="display:flex; gap:10px; margin-bottom:20px;">
+                <div style="flex:1; background:#1a1a1a; padding:15px; border-radius:10px; border:1px solid #333; text-align:center;">
+                    <small>Saldo</small><h2 id="dash-saldo">R$ 0,00</h2>
                 </div>
-                <button class="btn-primary" onclick="salvarFinanceiro()">Adicionar</button>
             </div>
-
-            <div class="table-responsive">
-                <table id="finance-table">
-                    <thead><tr><th>Data</th><th>Desc</th><th>Tipo</th><th>Valor</th><th>Ação</th></tr></thead>
-                    <tbody></tbody>
-                </table>
+            <div class="form-card">
+                <h3>Lançamento Manual</h3>
+                <input type="text" id="fin-desc" placeholder="Descrição" style="margin-bottom:10px;">
+                <input type="number" id="fin-valor" placeholder="Valor" style="margin-bottom:10px;">
+                <select id="fin-tipo" style="margin-bottom:10px;"><option value="entrada">Entrada</option><option value="saida">Saída</option></select>
+                <button onclick="salvarFinanceiro()" class="btn-generate" style="margin-top:10px;">ADICIONAR</button>
             </div>
+            <table><tbody id="lista-financeiro"></tbody></table>
         </div>
+
     </div>
 
     <div id="modal-os" class="modal-overlay">
         <div class="modal-content">
-            <div class="modal-header">
-                <h2 id="modal-os-title">Nova Ordem de Serviço</h2>
-                <button onclick="fecharModalOS()" class="btn-close">&times;</button>
+            <div style="display:flex; justify-content:space-between; margin-bottom:20px;">
+                <h2>Ordem de Serviço</h2>
+                <button onclick="document.getElementById('modal-os').style.display='none'" style="background:none; border:none; color:#fff; font-size:1.5rem;">&times;</button>
             </div>
-            <div class="modal-body">
-                <input type="hidden" id="os-id-hidden">
-
-                <h4 class="step-title">1. Cliente e Aparelho</h4>
-                <div class="row-inputs">
-                    <input type="text" id="os-cliente" placeholder="Nome do Cliente">
-                    <input type="text" id="os-tel" placeholder="WhatsApp">
-                </div>
-                <div class="row-inputs">
-                    <input type="text" id="os-modelo" placeholder="Modelo Aparelho">
-                    <input type="text" id="os-imei" placeholder="IMEI">
-                </div>
-                <div class="row-inputs">
-                    <input type="text" id="os-senha" placeholder="Senha Tela">
-                    <input type="text" id="os-acessorios" placeholder="Acessórios">
-                </div>
-
-                <h4 class="step-title">2. Checklist (O que funciona?)</h4>
-                <div class="checklist-grid">
-                    <label class="check-item"><input type="checkbox" id="chk-liga"> Liga</label>
-                    <label class="check-item"><input type="checkbox" id="chk-tela"> Tela</label>
-                    <label class="check-item"><input type="checkbox" id="chk-touch"> Touch</label>
-                    <label class="check-item"><input type="checkbox" id="chk-audio"> Áudio</label>
-                    <label class="check-item"><input type="checkbox" id="chk-camera"> Câmera</label>
-                    <label class="check-item"><input type="checkbox" id="chk-carga"> Carrega</label>
-                </div>
-                <textarea id="os-obs" placeholder="Observações..." style="width:100%; margin-top:10px; padding:10px; background:#222; border:1px solid #444; color:#fff;"></textarea>
-
-                <h4 class="step-title">3. Valores</h4>
-                <textarea id="os-defeito" placeholder="Defeito Relatado"></textarea>
-                <div class="row-inputs">
-                    <input type="number" id="os-pecas" placeholder="Peças (R$)">
-                    <input type="number" id="os-mao" placeholder="Mão de Obra (R$)">
-                </div>
-                <div class="row-inputs">
-                    <input type="number" id="os-desconto" placeholder="Desconto (R$)">
-                    <input type="number" id="os-sinal" placeholder="Sinal / Entrada (R$)">
-                </div>
-                <div class="total-display">Total: R$ <span id="os-total-display">0,00</span></div>
-
-                <h4 class="step-title" style="margin-top:20px;">4. Assinatura Cliente</h4>
-                <div style="display:flex; gap:10px; margin-bottom:10px;">
-                    <button onclick="abaAssinatura('pc')" class="btn-action" style="flex:1;">Assinar Aqui</button>
-                    <button onclick="gerarQRCodeOS()" class="btn-action" style="flex:1;">QR Code (Celular)</button>
-                </div>
-
-                <div id="area-assinatura-pc">
-                    <div class="signature-wrapper" style="border:1px solid #555;"><canvas id="signature-pad-os"></canvas></div>
-                    <button onclick="limparPadOS()" class="btn-clear" style="width:auto; padding:5px 10px;">Limpar</button>
-                </div>
-
-                <div id="area-assinatura-qr" style="display:none; text-align:center; padding:20px; background:#fff; border-radius:10px;">
-                    <div id="qrcode-os"></div>
-                    <p style="color:#000; margin-top:10px;">Aguardando assinatura...</p>
-                </div>
+            <input type="hidden" id="os-id">
+            
+            <label>Cliente</label>
+            <div style="display:flex; gap:10px; margin-bottom:10px;">
+                <input id="os-cliente" placeholder="Nome">
+                <input id="os-tel" placeholder="Tel/Whats">
             </div>
-            <div class="modal-footer">
-                <button onclick="salvarOS()" class="btn-primary">SALVAR OS</button>
+
+            <label>Aparelho</label>
+            <div style="display:flex; gap:10px; margin-bottom:10px;">
+                <input id="os-modelo" placeholder="Modelo">
+                <input id="os-imei" placeholder="IMEI">
             </div>
+            <div style="display:flex; gap:10px; margin-bottom:10px;">
+                <input id="os-senha" placeholder="Senha Tela">
+                <input id="os-acessorios" placeholder="Acessórios">
+            </div>
+
+            <label>Checklist Entrada</label>
+            <div class="checklist-grid" style="margin-bottom:10px;">
+                <label class="check-item"><input type="checkbox" id="chk-liga"> Liga</label>
+                <label class="check-item"><input type="checkbox" id="chk-tela"> Tela OK</label>
+                <label class="check-item"><input type="checkbox" id="chk-touch"> Touch OK</label>
+                <label class="check-item"><input type="checkbox" id="chk-carga"> Carrega</label>
+            </div>
+            <textarea id="os-obs" placeholder="Observações do estado físico..." rows="2" style="margin-bottom:10px;"></textarea>
+
+            <label>Serviço / Valores</label>
+            <textarea id="os-defeito" placeholder="Defeito relatado..." rows="2" style="margin-bottom:5px;"></textarea>
+            <div style="display:flex; gap:10px;">
+                <input type="number" id="os-pecas" placeholder="Peças R$">
+                <input type="number" id="os-mao" placeholder="Mão de Obra R$">
+            </div>
+            <div style="display:flex; gap:10px; margin-top:5px;">
+                <input type="number" id="os-desconto" placeholder="Desconto R$">
+                <input type="number" id="os-sinal" placeholder="Sinal (Entrada) R$">
+            </div>
+            
+            <h3 style="text-align:right; color:var(--primary-color); margin:10px 0;">Total: R$ <span id="os-total">0,00</span></h3>
+            
+            <label>Assinatura Cliente</label>
+            <div class="signature-wrapper" style="border:1px solid #555;"><canvas id="signature-pad-os"></canvas></div>
+            <button onclick="padOS.clear()" class="btn-clear" style="width:auto; padding:5px 10px; margin-bottom:20px;">Limpar Assinatura</button>
+
+            <button onclick="salvarOS()" class="btn-generate" style="margin-top:0;">SALVAR OS</button>
         </div>
     </div>
+    
+    <div id="qrcode-container" style="display:none;"></div>
 
     <script src="admin-script.js"></script>
 </body>
