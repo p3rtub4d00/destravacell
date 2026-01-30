@@ -23,20 +23,18 @@ if (!mongoURI) {
         .catch(err => console.error('❌ Erro de Conexão MongoDB:', err));
 }
 
-app.use(express.json({ limit: '10mb' })); // Limite alto para aceitar assinaturas
-app.use(cookieParser()); // Para ler o cookie de login
+app.use(express.json({ limit: '50mb' })); // Aumentado para suportar assinaturas grandes
+app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
 // --- MODELOS (SCHEMAS) ---
 
-// 1. Usuário Admin
 const UserSchema = new mongoose.Schema({
     username: { type: String, unique: true, required: true },
     password: { type: String, required: true }
 });
 const User = mongoose.model('User', UserSchema);
 
-// 2. Recibo (Original mantido)
 const ReciboSchema = new mongoose.Schema({
     nome: String,
     cpf: String,
@@ -53,60 +51,82 @@ const ReciboSchema = new mongoose.Schema({
 });
 const Recibo = mongoose.model('Recibo', ReciboSchema);
 
-// 3. Financeiro (Novo)
 const FinanceiroSchema = new mongoose.Schema({
     tipo: { type: String, enum: ['entrada', 'saida'], required: true },
     descricao: { type: String, required: true },
     valor: { type: Number, required: true },
     data: { type: Date, default: Date.now },
-    dataFormatada: String // opcional, para facilitar exibição
+    dataFormatada: String
 });
 const Financeiro = mongoose.model('Financeiro', FinanceiroSchema);
 
-// --- FUNÇÕES AUXILIARES ---
+// --- NOVO MODELO: ORDEM DE SERVIÇO ---
+const OSSchema = new mongoose.Schema({
+    cliente: {
+        nome: String,
+        cpf: String,
+        telefone: String,
+        endereco: String
+    },
+    aparelho: {
+        modelo: String,
+        imei: String,
+        senha: String,
+        acessorios: String
+    },
+    checklist: {
+        tela: String,
+        bateria: String,
+        carcaca: String,
+        botoes: String,
+        cameras: String,
+        som: String,
+        conectividade: String,
+        carregamento: String,
+        sensores: String
+    },
+    defeitoRelatado: String,
+    status: { type: String, default: 'Aberto' }, // Aberto, Aguardando Peça, Concluido
+    assinaturaCliente: String, // Base64 da imagem
+    dataEntrada: { type: Date, default: Date.now },
+    numeroOS: { type: Number } // ID numérico simples (timestamp)
+});
+const OrdemServico = mongoose.model('OrdemServico', OSSchema);
 
+
+// --- FUNÇÕES AUXILIARES ---
 async function criarAdminPadrao() {
     try {
         const adminExiste = await User.findOne({ username: 'admin' });
         if (!adminExiste) {
             const hash = await bcrypt.hash('rafaelRAMOS28', 10);
             await User.create({ username: 'admin', password: hash });
-            console.log('🔐 Usuário ADMIN criado: admin / admin123');
+            console.log('🔐 Usuário ADMIN criado: admin / rafaelRAMOS28');
         }
-    } catch (e) {
-        console.error("Erro ao criar admin:", e);
-    }
+    } catch (e) { console.error("Erro ao criar admin:", e); }
 }
 
-// Middleware de Autenticação
 const authMiddleware = (req, res, next) => {
     const token = req.cookies.token;
     if (!token) return res.status(401).json({ erro: 'Não autorizado' });
-
     try {
         jwt.verify(token, JWT_SECRET);
         next();
-    } catch (e) {
-        res.status(401).json({ erro: 'Token inválido' });
-    }
+    } catch (e) { res.status(401).json({ erro: 'Token inválido' }); }
 };
 
-// --- ROTAS DE AUTENTICAÇÃO ---
+// --- ROTAS ---
 
+// Auth
 app.post('/api/login', async (req, res) => {
     const { username, password } = req.body;
-    try {
-        const user = await User.findOne({ username });
-        if (!user || !(await bcrypt.compare(password, user.password))) {
-            return res.status(401).json({ erro: 'Credenciais inválidas' });
-        }
-
-        const token = jwt.sign({ id: user._id }, JWT_SECRET, { expiresIn: '8h' });
-        res.cookie('token', token, { httpOnly: true, maxAge: 8 * 3600000 }); // 8 horas
-        res.json({ mensagem: 'Logado com sucesso' });
-    } catch (e) {
-        res.status(500).json({ erro: 'Erro no servidor' });
+    const user = await User.findOne({ username });
+    if (!user || !(await bcrypt.compare(password, user.password))) {
+        return res.status(401).json({ erro: 'Credenciais inválidas' });
     }
+    const token = jwt.sign({ username }, JWT_SECRET, { expiresIn: '24h' });
+    res.cookie('token', token, { httpOnly: true });
+    res.json({ mensagem: 'Login com sucesso' });
 });
 
 app.post('/api/logout', (req, res) => {
@@ -114,90 +134,81 @@ app.post('/api/logout', (req, res) => {
     res.json({ mensagem: 'Logout realizado' });
 });
 
-app.get('/api/check-auth', (req, res) => {
-    const token = req.cookies.token;
-    if (!token) return res.status(401).json({ logado: false });
-    try {
-        jwt.verify(token, JWT_SECRET);
-        res.json({ logado: true });
-    } catch {
-        res.status(401).json({ logado: false });
-    }
-});
+app.get('/api/check-auth', authMiddleware, (req, res) => res.sendStatus(200));
 
-// --- ROTAS FINANCEIRO (Protegidas) ---
-
-app.post('/api/financeiro', authMiddleware, async (req, res) => {
-    try {
-        const novoLancamento = new Financeiro(req.body);
-        const salvo = await novoLancamento.save();
-        res.status(201).json(salvo);
-    } catch (e) { res.status(500).json({ erro: e.message }); }
-});
-
-app.get('/api/financeiro', authMiddleware, async (req, res) => {
-    try {
-        // Retorna ordenado pela data mais recente
-        const lancamentos = await Financeiro.find().sort({ data: -1 });
-        res.json(lancamentos);
-    } catch (e) { res.status(500).json({ erro: e.message }); }
-});
-
-app.delete('/api/financeiro/:id', authMiddleware, async (req, res) => {
-    try {
-        await Financeiro.findByIdAndDelete(req.params.id);
-        res.json({ ok: true });
-    } catch (e) { res.status(500).json({ erro: e.message }); }
-});
-
-
-// --- ROTAS DE RECIBOS (AGORA PROTEGIDAS) ---
-
-// 1. Salvar Recibo
-app.post('/api/recibos', authMiddleware, async (req, res) => {
-    try {
-        const novoRecibo = new Recibo(req.body);
-        const salvo = await novoRecibo.save();
-        res.status(201).json(salvo);
-    } catch (error) {
-        res.status(500).json({ erro: 'Erro ao salvar', detalhe: error.message });
-    }
-});
-
-// 2. Listar Todos
+// Recibos
 app.get('/api/recibos', authMiddleware, async (req, res) => {
-    try {
-        const recibos = await Recibo.find({}, 'nome modelo valor dataFormatada _id').sort({ dataCriacao: -1 });
-        res.json(recibos);
-    } catch (error) {
-        res.status(500).json({ erro: 'Erro ao listar' });
-    }
+    const recibos = await Recibo.find().sort({ dataCriacao: -1 });
+    res.json(recibos);
 });
-
-// 3. Buscar UM Recibo
 app.get('/api/recibos/:id', authMiddleware, async (req, res) => {
-    try {
-        const recibo = await Recibo.findById(req.params.id);
-        if (!recibo) return res.status(404).json({ erro: 'Recibo não encontrado' });
-        res.json(recibo);
-    } catch (error) {
-        res.status(500).json({ erro: 'Erro ao buscar recibo único' });
-    }
+    res.json(await Recibo.findById(req.params.id));
 });
-
-// 4. Deletar Recibo
+app.post('/api/recibos', authMiddleware, async (req, res) => {
+    const novo = await Recibo.create(req.body);
+    res.json(novo);
+});
 app.delete('/api/recibos/:id', authMiddleware, async (req, res) => {
+    await Recibo.findByIdAndDelete(req.params.id);
+    res.json({ ok: true });
+});
+
+// Financeiro
+app.get('/api/financeiro', authMiddleware, async (req, res) => {
+    const fin = await Financeiro.find().sort({ data: -1 });
+    res.json(fin);
+});
+app.post('/api/financeiro', authMiddleware, async (req, res) => {
+    const novo = await Financeiro.create(req.body);
+    res.json(novo);
+});
+app.delete('/api/financeiro/:id', authMiddleware, async (req, res) => {
+    await Financeiro.findByIdAndDelete(req.params.id);
+    res.json({ ok: true });
+});
+
+// --- ROTAS ORDEM DE SERVIÇO (NOVAS) ---
+
+// Criar OS
+app.post('/api/os', authMiddleware, async (req, res) => {
     try {
-        await Recibo.findByIdAndDelete(req.params.id);
-        res.json({ mensagem: 'Deletado com sucesso' });
-    } catch (error) {
-        res.status(500).json({ erro: 'Erro ao deletar' });
+        const dados = req.body;
+        dados.numeroOS = Date.now(); // ID simples para QR Code
+        const novaOS = await OrdemServico.create(dados);
+        res.json(novaOS);
+    } catch (e) {
+        res.status(500).json({ erro: e.message });
     }
 });
 
-// Front-end
-app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+// Listar OS
+app.get('/api/os', authMiddleware, async (req, res) => {
+    const lista = await OrdemServico.find().sort({ dataEntrada: -1 });
+    res.json(lista);
+});
+
+// Buscar OS Individual (Pública para assinatura via QR Code)
+app.get('/api/os/:id', async (req, res) => {
+    try {
+        const os = await OrdemServico.findById(req.params.id);
+        if (!os) return res.status(404).json({ erro: "OS não encontrada" });
+        res.json(os);
+    } catch (e) { res.status(500).json({ erro: "Erro interno" }); }
+});
+
+// Salvar Assinatura (Pública para o celular enviar)
+app.put('/api/os/:id/assinar', async (req, res) => {
+    try {
+        const { assinatura } = req.body;
+        await OrdemServico.findByIdAndUpdate(req.params.id, { assinaturaCliente: assinatura });
+        res.json({ ok: true });
+    } catch (e) { res.status(500).json({ erro: "Erro ao salvar assinatura" }); }
+});
+
+// Deletar OS
+app.delete('/api/os/:id', authMiddleware, async (req, res) => {
+    await OrdemServico.findByIdAndDelete(req.params.id);
+    res.json({ ok: true });
 });
 
 app.listen(port, () => {
