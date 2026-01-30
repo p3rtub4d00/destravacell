@@ -39,7 +39,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 conectividade: document.getElementById('ck-rede').value,
                 sensores: document.getElementById('ck-sensores').value
             },
-            defeitoRelatado: document.getElementById('os-defeito').value
+            defeitoRelatado: document.getElementById('os-defeito').value,
+            // CAPTURA DO VALOR DO ORÇAMENTO
+            valor: document.getElementById('os-valor').value
         };
 
         if(!dados.cliente.nome || !dados.aparelho.modelo) {
@@ -69,7 +71,7 @@ document.addEventListener('DOMContentLoaded', () => {
             area.scrollIntoView({ behavior: 'smooth' });
             
             carregarOSHistory();
-            alert("OS Criada! Escaneie o QR Code para o cliente assinar.");
+            alert(`OS Criada! Valor Orçamento: ${dados.valor || 'Não informado'}. Peça a assinatura.`);
 
         } catch(e) { alert("Erro ao criar OS: " + e.message); }
         finally { btn.innerHTML = originalText; btn.disabled = false; }
@@ -84,7 +86,10 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if(os.assinaturaCliente) {
                 alert("✅ Assinatura detectada! Gerando PDF...");
+                
+                // ESCONDE A TELA DE PENDÊNCIA PARA RESOLVER O ERRO VISUAL
                 document.getElementById('area-assinatura-os').style.display = 'none';
+                
                 gerarPDFOS(os);
                 limparFormularioOS();
             } else {
@@ -93,14 +98,15 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch(e) { alert("Erro ao verificar assinatura."); }
     };
 
-    // --- NOVA LÓGICA: CONCLUIR OS ---
+    // --- NOVA LÓGICA: CONCLUIR OS E LANÇAR NO FINANCEIRO ---
     window.concluirOS = async (id) => {
-        const valorStr = prompt("Qual o valor final do serviço? (Este valor entrará no Financeiro)");
+        const valorStr = prompt("Qual o valor final recebido do cliente? (Use ponto ou vírgula)");
+        
         if(valorStr === null) return; // Cancelou
 
         const valor = parseFloat(valorStr.replace(',', '.'));
         if(isNaN(valor) || valor <= 0) {
-            return alert("Valor inválido. Digite um número (ex: 150.00)");
+            return alert("Valor inválido. Digite apenas números.");
         }
 
         try {
@@ -111,7 +117,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             
             if(res.ok) {
-                alert(`✅ Serviço Concluído! R$ ${valor.toFixed(2)} lançado no Financeiro.`);
+                alert(`✅ OS Concluída! R$ ${valor.toFixed(2)} lançado no Financeiro.`);
                 carregarOSHistory();
             } else {
                 alert("Erro ao concluir OS.");
@@ -179,10 +185,11 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('os-senha').value = "";
         document.getElementById('os-acessorios').value = "";
         document.getElementById('os-defeito').value = "";
+        document.getElementById('os-valor').value = "";
         osAtualID = null;
     }
 
-    // --- GERADOR PDF OS ---
+    // --- GERADOR PDF OS COM VALOR ---
     function gerarPDFOS(os) {
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF();
@@ -214,6 +221,17 @@ document.addEventListener('DOMContentLoaded', () => {
         doc.setFont("helvetica", "bold"); doc.text("Defeito Relatado:", 15, y); y+=7;
         doc.setFont("helvetica", "normal");
         doc.text(os.defeitoRelatado || "Não informado", 15, y, {maxWidth: 180}); y+=15;
+
+        // === ÁREA DO VALOR DO ORÇAMENTO (EM DESTAQUE) ===
+        if(os.valor) {
+            doc.setDrawColor(0); doc.setLineWidth(0.5); 
+            doc.rect(130, 45, 60, 20); // Caixa do valor
+            doc.setFont("helvetica", "bold"); doc.setFontSize(10);
+            doc.text("VALOR ORÇAMENTO", 160, 52, null, null, "center");
+            doc.setFontSize(14); 
+            doc.text(`R$ ${os.valor}`, 160, 60, null, null, "center");
+            doc.setFontSize(10); doc.setFont("helvetica", "normal");
+        }
 
         // Checklist
         doc.setFillColor(230,230,230); doc.rect(10, y, 190, 8, 'F');
@@ -252,7 +270,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     // ============================================
-    // === 2. MÓDULO RECIBO (COMPRA/VENDA) ===
+    // === 2. MÓDULO RECIBO (COMPRA/VENDA + FINANCEIRO) ===
     // ============================================
     const canvas = document.getElementById('signature-pad');
     if(canvas) {
@@ -276,7 +294,7 @@ document.addEventListener('DOMContentLoaded', () => {
              const txt = btn.innerHTML; btn.innerHTML = "Processando..."; btn.disabled = true;
 
              const dados = {
-                tipoOperacao: document.getElementById('tipo-recibo').value, // CAMPO NOVO
+                tipoOperacao: document.getElementById('tipo-recibo').value, // CAPTURA TIPO (COMPRA/VENDA)
                 nome: document.getElementById('nome').value || "---",
                 cpf: document.getElementById('cpf').value || "---",
                 rg: document.getElementById('rg').value || "---",
@@ -335,7 +353,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 100);
     }
 
-    // === LAYOUT ORIGINAL NEXUS DIGITAL (MANTIDO) ===
+    // === LAYOUT ORIGINAL NEXUS DIGITAL (PDF DE RECIBO) ===
     window.criarArquivoPDF = (d, qr) => {
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF();
@@ -348,9 +366,8 @@ document.addEventListener('DOMContentLoaded', () => {
         doc.text("Destrava Cell | Soluções Mobile", 105, 26, null, null, "center");
         doc.line(10, 30, 200, 30);
 
-        // Ajusta Título conforme o tipo
+        // Título Dinâmico
         const titulo = d.tipoOperacao === 'compra' ? "RECIBO DE COMPRA (AQUISIÇÃO)" : "RECIBO DE VENDA";
-        
         doc.setFontSize(14); doc.setFont("helvetica", "bold");
         doc.text(titulo, 105, 40, null, null, "center");
         
@@ -402,6 +419,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const lista = await res.json();
             tb.innerHTML = "";
             lista.forEach(i => {
+                // DIFERENCIAÇÃO VISUAL NA TABELA
                 const tipoDisplay = i.tipoOperacao === 'compra' 
                     ? '<span style="color:#ff4444; font-weight:bold;">COMPRA (SAÍDA)</span>' 
                     : '<span style="color:#00ff88; font-weight:bold;">VENDA (ENTRADA)</span>';
@@ -458,8 +476,9 @@ document.addEventListener('DOMContentLoaded', () => {
     window.deletarFin = async(id) => { await fetch(`/api/financeiro/${id}`, {method:'DELETE'}); carregarFinanceiro(); };
 
 
-    // === TABELA DE PREÇOS ===
-    // ATENÇÃO: COLE AQUI SUA LISTA COMPLETA DE PREÇOS SE ELA TIVER SIDO APAGADA
+    // === TABELA DE PREÇOS (BUSCA) ===
+    
+    // *** ATENÇÃO: COLE SUA LISTA DE PREÇOS AQUI ABAIXO ***
     const bancoPrecos = [
         { m: "Samsung", mod: "Galaxy A01 Core", serv: "100", blq: "50", ok: "150" },
         { m: "Samsung", mod: "Galaxy A10", serv: "120", blq: "80", ok: "200" },
