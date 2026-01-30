@@ -31,7 +31,7 @@
         .tab-content { display: none; }
         .tab-content.active { display: block; animation: fadeIn 0.3s; }
 
-        /* ESTILOS GERAIS DE FORMULÁRIO */
+        /* ESTILOS GERAIS */
         .form-card { background: #1a1a1a; padding: 25px; border-radius: 15px; border: 1px solid #333; margin-bottom: 30px; }
         .form-group { margin-bottom: 20px; }
         label { display: block; color: #fff; margin-bottom: 8px; font-size: 0.9rem; }
@@ -44,7 +44,7 @@
         .row { display: flex; gap: 15px; flex-wrap: wrap; }
         .col { flex: 1; min-width: 200px; }
 
-        /* NOVOS ESTILOS DE BOTÕES */
+        /* BOTÕES */
         .btn-generate { 
             width: 100%; background: var(--primary-color); color: #000; 
             font-weight: 700; padding: 15px; border: none; border-radius: 12px; 
@@ -53,44 +53,35 @@
             box-shadow: 0 4px 15px rgba(0,255,136,0.2);
         }
         .btn-generate:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,255,136,0.3); }
-        .btn-generate:active { transform: translateY(0); }
-
+        
         .btn-secondary {
             background: #333; color: #fff; border: 1px solid #555;
             padding: 10px 20px; border-radius: 8px; cursor: pointer; margin-top: 10px;
         }
 
-        /* Botões de Ação na Tabela (Ícones) */
         .btn-icon {
             border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; 
             transition: 0.2s; margin-right: 5px; font-size: 1rem;
         }
-        .btn-action { background: #00ff88; color: #000; } /* Verde para Imprimir/PDF */
-        .btn-action:hover { background: #00cc6a; box-shadow: 0 0 8px rgba(0,255,136,0.4); }
-        
-        .btn-danger { background: #ff4444; color: #fff; } /* Vermelho para Excluir */
-        .btn-danger:hover { background: #cc0000; box-shadow: 0 0 8px rgba(255, 68, 68, 0.4); }
+        .btn-action { background: #00ff88; color: #000; } 
+        .btn-conclude { background: #00aaff; color: #fff; }
+        .btn-danger { background: #ff4444; color: #fff; } 
 
-        /* CHECKLIST ESTILIZADO */
+        /* CHECKLIST */
         .checklist-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin-top: 15px; }
         .check-item { background: #111; padding: 10px; border-radius: 8px; border: 1px solid #333; }
         .check-item label { font-size: 0.8rem; color: #aaa; margin-bottom: 5px; }
         .check-item select { padding: 5px; font-size: 0.9rem; height: 35px; }
 
-        /* ASSINATURA */
         .signature-wrapper { background: #fff; border-radius: 8px; overflow: hidden; margin-top: 10px; border: 2px dashed #444; }
         canvas { display: block; width: 100%; height: 200px; }
         
-        /* TABELAS */
         .history-section { margin-top: 40px; border-top: 1px solid #333; padding-top: 20px; }
         .table-responsive { overflow-x: auto; border-radius: 8px; border: 1px solid #333; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
         table { width: 100%; border-collapse: collapse; color: #ccc; font-size: 0.9rem; background: #1a1a1a; }
-        th { background: #222; color: var(--primary-color); padding: 15px; text-align: left; font-weight: 600; text-transform: uppercase; font-size: 0.8rem; letter-spacing: 0.5px; }
+        th { background: #222; color: var(--primary-color); padding: 15px; text-align: left; font-weight: 600; text-transform: uppercase; font-size: 0.8rem; }
         td { padding: 15px; border-bottom: 1px solid #333; vertical-align: middle; }
-        tr:last-child td { border-bottom: none; }
-        tr:hover { background: #202020; }
         
-        /* QR Code Area */
         #qrcode-os-display { background: #fff; padding: 15px; display: inline-block; border-radius: 10px; margin: 15px 0; }
 
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
@@ -104,7 +95,7 @@
         </div>
 
         <div class="tabs">
-            <button class="tab-btn active" onclick="openTab('tab-recibo')"><i class="fas fa-receipt"></i> Recibo Venda</button>
+            <button class="tab-btn active" onclick="openTab('tab-recibo')"><i class="fas fa-receipt"></i> Recibo Venda/Compra</button>
             <button class="tab-btn" onclick="openTab('tab-os')"><i class="fas fa-tools"></i> Ordem de Serviço</button>
             <button class="tab-btn" onclick="openTab('tab-financeiro')"><i class="fas fa-chart-line"></i> Financeiro</button>
             <button class="tab-btn" onclick="openTab('tab-precos')"><i class="fas fa-tags"></i> Tabela Preços</button>
@@ -112,7 +103,16 @@
 
         <div id="tab-recibo" class="tab-content active">
              <div class="form-card">
-                <h4 style="color: var(--primary-color); margin-bottom: 15px; border-bottom: 1px solid #333; padding-bottom: 10px;">Dados do Cliente</h4>
+                <h4 style="color: var(--primary-color); margin-bottom: 15px; border-bottom: 1px solid #333; padding-bottom: 10px;">Dados do Cliente / Transação</h4>
+                
+                <div class="form-group" style="background: #222; padding: 15px; border-radius: 8px; border: 1px solid var(--primary-color);">
+                    <label style="color: var(--primary-color); font-weight: bold; font-size: 1rem;">TIPO DE OPERAÇÃO (Define Entrada ou Saída no Caixa)</label>
+                    <select id="tipo-recibo" style="background: #000; border: 1px solid #555; height: 45px; font-weight: bold;">
+                        <option value="venda">VENDA (Entrada de Dinheiro)</option>
+                        <option value="compra">COMPRA DE APARELHO (Saída de Dinheiro)</option>
+                    </select>
+                </div>
+
                 <div class="form-group"><label>Nome Completo</label><input type="text" id="nome"></div>
                 <div class="row">
                     <div class="col"><div class="form-group"><label>CPF</label><input type="text" id="cpf"></div></div>
@@ -133,27 +133,28 @@
                                 <option value="Bloqueado Conta Google">Bloqueado Conta Google</option>
                                 <option value="Bloqueado MDM/Financeiro">Bloqueado MDM/Financeiro</option>
                                 <option value="Tela Quebrada / Defeito">Tela Quebrada / Defeito</option>
+                                <option value="Sucata">Sucata / Peças</option>
                             </select>
                         </div>
                     </div>
                 </div>
 
-                <h4 style="color:var(--primary-color); margin-top:25px;">Assinatura do Vendedor</h4>
+                <h4 style="color:var(--primary-color); margin-top:25px;">Assinatura</h4>
                 <div class="signature-wrapper"><canvas id="signature-pad"></canvas></div>
                 <button class="btn-secondary" id="clear-pad"><i class="fas fa-eraser"></i> Limpar Assinatura</button>
                 
                 <button class="btn-generate" onclick="gerarPDF()">
-                    <i class="fas fa-file-pdf"></i> Salvar e Baixar PDF
+                    <i class="fas fa-file-pdf"></i> Salvar e Gerar PDF
                 </button>
             </div>
             
             <div class="history-section">
-                <h3>Histórico de Vendas (Recibos)</h3>
+                <h3>Histórico de Transações</h3>
                 <div class="table-responsive">
                     <table id="history-table">
                         <thead>
                             <tr>
-                                <th>Data</th>
+                                <th>Tipo</th>
                                 <th>Cliente</th>
                                 <th>Modelo</th>
                                 <th>Valor</th>
@@ -184,24 +185,24 @@
 
                 <div class="form-group">
                     <label>Acessórios Deixados</label>
-                    <input type="text" id="os-acessorios" placeholder="Ex: Capa, Chip, Cartão SD (Se nada, deixar em branco)">
+                    <input type="text" id="os-acessorios" placeholder="Ex: Capa, Chip, Cartão SD">
                 </div>
 
                 <div class="form-group">
-                    <label>Defeito Relatado pelo Cliente</label>
+                    <label>Defeito Relatado</label>
                     <textarea id="os-defeito" rows="3" placeholder="Descreva o problema..."></textarea>
                 </div>
 
                 <h5 style="color: var(--primary-color); margin-top: 20px; border-bottom: 1px solid #333; padding-bottom: 5px;">Checklist de Entrada</h5>
                 <div class="checklist-grid">
-                    <div class="check-item"><label>Tela/Frontal</label><select id="ck-tela"><option value="OK">OK (Intacta)</option><option value="Quebrada">Quebrada/Trincada</option><option value="Riscada">Riscada</option><option value="Descolando">Descolando</option></select></div>
-                    <div class="check-item"><label>Bateria</label><select id="ck-bateria"><option value="OK">Carregando</option><option value="Ruim">Viciada/Ruim</option><option value="Nao Carrega">Não Carrega</option></select></div>
-                    <div class="check-item"><label>Carcaça/Aro</label><select id="ck-carcaca"><option value="OK">Boa</option><option value="Marcas de Uso">Marcas de Uso</option><option value="Amassada">Amassada/Quebrada</option></select></div>
-                    <div class="check-item"><label>Botões</label><select id="ck-botoes"><option value="OK">Funcionando</option><option value="Falhando">Falhando</option><option value="Quebrados">Quebrados/Faltando</option></select></div>
-                    <div class="check-item"><label>Câmeras</label><select id="ck-cameras"><option value="OK">Limpas/Focando</option><option value="Embaçada">Suja/Embaçada</option><option value="Erro">Erro ao abrir</option></select></div>
-                    <div class="check-item"><label>Som/Microfone</label><select id="ck-som"><option value="OK">OK</option><option value="Ruim">Baixo/Chiado</option><option value="Mudo">Sem som</option></select></div>
-                    <div class="check-item"><label>Wi-Fi/Rede</label><select id="ck-rede"><option value="OK">Conecta</option><option value="Falha">Não Conecta/Fraco</option></select></div>
-                    <div class="check-item"><label>Sensores</label><select id="ck-sensores"><option value="OK">OK</option><option value="Falha">Falha Prox/FaceID</option></select></div>
+                    <div class="check-item"><label>Tela/Frontal</label><select id="ck-tela"><option value="OK">OK (Intacta)</option><option value="Quebrada">Quebrada</option><option value="Riscada">Riscada</option><option value="Descolando">Descolando</option></select></div>
+                    <div class="check-item"><label>Bateria</label><select id="ck-bateria"><option value="OK">Carregando</option><option value="Ruim">Viciada</option><option value="Nao Carrega">Não Carrega</option></select></div>
+                    <div class="check-item"><label>Carcaça</label><select id="ck-carcaca"><option value="OK">Boa</option><option value="Marcas">Marcas de Uso</option><option value="Amassada">Amassada/Quebrada</option></select></div>
+                    <div class="check-item"><label>Botões</label><select id="ck-botoes"><option value="OK">Funcionando</option><option value="Falhando">Falhando</option><option value="Quebrados">Quebrados</option></select></div>
+                    <div class="check-item"><label>Câmeras</label><select id="ck-cameras"><option value="OK">Limpas</option><option value="Embaçada">Suja/Embaçada</option><option value="Erro">Erro ao abrir</option></select></div>
+                    <div class="check-item"><label>Som</label><select id="ck-som"><option value="OK">OK</option><option value="Ruim">Baixo/Chiado</option><option value="Mudo">Sem som</option></select></div>
+                    <div class="check-item"><label>Rede/Wi-Fi</label><select id="ck-rede"><option value="OK">Conecta</option><option value="Falha">Não Conecta</option></select></div>
+                    <div class="check-item"><label>Sensores</label><select id="ck-sensores"><option value="OK">OK</option><option value="Falha">Falha</option></select></div>
                 </div>
 
                 <button class="btn-generate" onclick="criarOS()">
@@ -215,7 +216,7 @@
                 <div id="qrcode-os-display"></div>
                 <br>
                 <button class="btn-generate" style="max-width: 350px; margin: 20px auto; background: #fff; color: #000;" onclick="verificarAssinaturaEImprimir()">
-                    <i class="fas fa-check-circle"></i> JÁ ASSINOU? ATUALIZAR
+                    <i class="fas fa-check-circle"></i> JÁ ASSINOU? IMPRIMIR
                 </button>
             </div>
 
@@ -228,7 +229,6 @@
                                 <th>OS #</th>
                                 <th>Data</th>
                                 <th>Cliente</th>
-                                <th>Aparelho</th>
                                 <th>Status</th>
                                 <th>Ações</th>
                             </tr>
@@ -255,7 +255,7 @@
                 </div>
             </div>
             <div class="form-card">
-                <h4 style="color: var(--primary-color);">Novo Lançamento</h4>
+                <h4 style="color: var(--primary-color);">Lançamento Manual</h4>
                 <div class="row">
                     <div class="col" style="flex:2;"><div class="form-group"><label>Descrição</label><input type="text" id="fin-desc"></div></div>
                     <div class="col"><div class="form-group"><label>Valor</label><input type="number" id="fin-valor"></div></div>
@@ -264,7 +264,7 @@
                 <button class="btn-generate" onclick="salvarFinanceiro()">Lançar</button>
             </div>
             <div class="history-section">
-                <h3>Extrato</h3>
+                <h3>Extrato Detalhado</h3>
                 <div class="table-responsive"><table id="finance-table"><tbody></tbody></table></div>
             </div>
         </div>
