@@ -23,7 +23,7 @@ if (!mongoURI) {
         .catch(err => console.error('❌ Erro de Conexão MongoDB:', err));
 }
 
-// Aumentando limite para suportar imagens base64 (assinaturas grandes)
+// Aumentando limite para suportar imagens base64
 app.use(express.json({ limit: '50mb' }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
@@ -36,8 +36,16 @@ const UserSchema = new mongoose.Schema({
 });
 const User = mongoose.model('User', UserSchema);
 
+// NOVO: Schema de Estoque
+const EstoqueSchema = new mongoose.Schema({
+    nome: { type: String, required: true },
+    quantidade: { type: Number, default: 0 },
+    valorCusto: { type: Number, default: 0 }
+});
+const Estoque = mongoose.model('Estoque', EstoqueSchema);
+
 const ReciboSchema = new mongoose.Schema({
-    tipoOperacao: { type: String, default: 'venda' }, // 'compra' ou 'venda'
+    tipoOperacao: { type: String, default: 'venda' },
     nome: String,
     cpf: String,
     rg: String,
@@ -46,7 +54,7 @@ const ReciboSchema = new mongoose.Schema({
     imei: String,
     valor: String,
     estado: String,
-    assinatura: String, // Imagem Base64
+    assinatura: String,
     dataCriacao: { type: Date, default: Date.now },
     dataFormatada: String,
     horaFormatada: String
@@ -58,7 +66,7 @@ const FinanceiroSchema = new mongoose.Schema({
     descricao: { type: String, required: true },
     valor: { type: Number, required: true },
     data: { type: Date, default: Date.now },
-    origem: { type: String, default: 'manual' } // 'manual', 'recibo', 'os'
+    origem: { type: String, default: 'manual' }
 });
 const Financeiro = mongoose.model('Financeiro', FinanceiroSchema);
 
@@ -76,24 +84,22 @@ const OSSchema = new mongoose.Schema({
         acessorios: String
     },
     checklist: {
-        tela: String,
-        bateria: String,
-        carcaca: String,
-        botoes: String,
-        cameras: String,
-        som: String,
-        conectividade: String,
-        carregamento: String,
-        sensores: String
+        tela: String, bateria: String, carcaca: String, botoes: String,
+        cameras: String, som: String, conectividade: String, sensores: String
     },
-    servico: String, // Tipo de serviço
+    servico: String,
     defeitoRelatado: String,
-    valor: String, // Valor do Orçamento Inicial
-    status: { type: String, default: 'Aberto' }, // Aberto, Concluido
-    valorFinal: { type: Number }, // Valor recebido ao concluir
-    assinaturaCliente: String, // Imagem Base64
+    valor: String, 
+    status: { type: String, default: 'Aberto' }, // Aberto, Aguardando Peça, Concluido, Entregue
+    valorFinal: { type: Number },
+    assinaturaCliente: String,
+    
+    // NOVO: Vínculo com Estoque
+    idPecaVinculada: String, // ID da peça no estoque
+    nomePecaVinculada: String, // Nome da peça (para histórico)
+
     dataEntrada: { type: Date, default: Date.now },
-    numeroOS: { type: Number } // ID curto numérico
+    numeroOS: { type: Number }
 });
 const OrdemServico = mongoose.model('OrdemServico', OSSchema);
 
@@ -105,7 +111,7 @@ async function criarAdminPadrao() {
         if (!adminExiste) {
             const hash = await bcrypt.hash('rafaelRAMOS28', 10);
             await User.create({ username: 'admin', password: hash });
-            console.log('🔐 Usuário ADMIN criado: admin / rafaelRAMOS28');
+            console.log('🔐 Usuário ADMIN criado.');
         }
     } catch (e) { console.error("Erro ao criar admin:", e); }
 }
@@ -119,8 +125,9 @@ const authMiddleware = (req, res, next) => {
     } catch (e) { res.status(401).json({ erro: 'Token inválido' }); }
 };
 
-// --- ROTAS DE AUTENTICAÇÃO ---
+// --- ROTAS ---
 
+// Auth
 app.post('/api/login', async (req, res) => {
     const { username, password } = req.body;
     const user = await User.findOne({ username });
@@ -139,37 +146,59 @@ app.post('/api/logout', (req, res) => {
 
 app.get('/api/check-auth', authMiddleware, (req, res) => res.sendStatus(200));
 
-// --- ROTAS DE RECIBOS (COM INTEGRAÇÃO FINANCEIRA) ---
+// --- ROTA PÚBLICA DE RASTREIO (OPÇÃO 2) ---
+app.get('/api/public/os/rastreio', async (req, res) => {
+    try {
+        const { busca } = req.query; // Pode ser Nº OS ou CPF
+        if (!busca) return res.status(400).json({ erro: "Digite o código da OS ou CPF" });
 
+        // Tenta achar por numeroOS (se for número) ou por CPF
+        let query = {};
+        if (!isNaN(busca)) {
+            // É numero? Tenta pelo ID da OS
+            // Como numeroOS é number e busca é string, convertemos ou buscamos exato
+             // Se o cliente digitar "1738249..." precisamos pegar os ultimos 4 digitos ou exato.
+             // Simplificação: Busca exata do numeroOS
+             query = { numeroOS: parseInt(busca) };
+        } else {
+            // Busca por CPF
+            query = { "cliente.cpf": busca };
+        }
+
+        const osFound = await OrdemServico.findOne(query);
+
+        if (!osFound) return res.status(404).json({ erro: "OS não encontrada." });
+
+        // Retorna APENAS dados públicos (segurança)
+        res.json({
+            numeroOS: osFound.numeroOS,
+            modelo: osFound.aparelho.modelo,
+            status: osFound.status,
+            dataEntrada: osFound.dataEntrada,
+            defeito: osFound.defeitoRelatado,
+            valor: osFound.valor // Valor orçamento
+        });
+
+    } catch (e) { res.status(500).json({ erro: "Erro ao buscar OS" }); }
+});
+
+
+// --- RECIBOS ---
 app.get('/api/recibos', authMiddleware, async (req, res) => {
     const recibos = await Recibo.find().sort({ dataCriacao: -1 });
     res.json(recibos);
 });
-
 app.get('/api/recibos/:id', authMiddleware, async (req, res) => {
-    try {
-        const recibo = await Recibo.findById(req.params.id);
-        res.json(recibo);
-    } catch (e) { res.status(500).json({ erro: e.message }); }
+    try { res.json(await Recibo.findById(req.params.id)); } catch (e) { res.status(500).json({erro:e.message}); }
 });
-
 app.post('/api/recibos', authMiddleware, async (req, res) => {
     try {
         const dados = req.body;
         const novoRecibo = await Recibo.create(dados);
-
-        // LANÇAMENTO AUTOMÁTICO NO FINANCEIRO
         if (dados.valor) {
-            // Converte "1.200,00" ou "1200" para number
             const valorNumerico = parseFloat(dados.valor.replace('.', '').replace(',', '.'));
-            
             if (!isNaN(valorNumerico) && valorNumerico > 0) {
-                // Se for COMPRA, sai dinheiro do caixa. Se for VENDA, entra.
-                let tipoFin = 'entrada';
-                if (dados.tipoOperacao === 'compra') {
-                    tipoFin = 'saida';
-                }
-
+                let tipoFin = dados.tipoOperacao === 'compra' ? 'saida' : 'entrada';
                 await Financeiro.create({
                     tipo: tipoFin,
                     descricao: `Recibo #${novoRecibo._id.toString().slice(-4)} - ${dados.tipoOperacao.toUpperCase()} - ${dados.modelo}`,
@@ -179,54 +208,56 @@ app.post('/api/recibos', authMiddleware, async (req, res) => {
             }
         }
         res.json(novoRecibo);
-    } catch (e) {
-        res.status(500).json({ erro: e.message });
-    }
+    } catch (e) { res.status(500).json({ erro: e.message }); }
 });
-
 app.delete('/api/recibos/:id', authMiddleware, async (req, res) => {
     await Recibo.findByIdAndDelete(req.params.id);
     res.json({ ok: true });
 });
 
-// --- ROTAS FINANCEIRO ---
-
+// --- FINANCEIRO ---
 app.get('/api/financeiro', authMiddleware, async (req, res) => {
-    const fin = await Financeiro.find().sort({ data: -1 });
-    res.json(fin);
+    res.json(await Financeiro.find().sort({ data: -1 }));
 });
-
 app.post('/api/financeiro', authMiddleware, async (req, res) => {
-    const novo = await Financeiro.create(req.body);
-    res.json(novo);
+    res.json(await Financeiro.create(req.body));
 });
-
 app.delete('/api/financeiro/:id', authMiddleware, async (req, res) => {
     await Financeiro.findByIdAndDelete(req.params.id);
     res.json({ ok: true });
 });
 
-// --- ROTAS ORDEM DE SERVIÇO (OS) ---
+// --- ESTOQUE (OPÇÃO 4) ---
+app.get('/api/estoque', authMiddleware, async (req, res) => {
+    res.json(await Estoque.find().sort({ nome: 1 }));
+});
+app.post('/api/estoque', authMiddleware, async (req, res) => {
+    try {
+        const novo = await Estoque.create(req.body);
+        res.json(novo);
+    } catch(e) { res.status(500).json({erro: e.message}); }
+});
+app.delete('/api/estoque/:id', authMiddleware, async (req, res) => {
+    await Estoque.findByIdAndDelete(req.params.id);
+    res.json({ ok: true });
+});
 
-// Criar OS
+// --- ORDEM DE SERVIÇO ---
 app.post('/api/os', authMiddleware, async (req, res) => {
     try {
         const dados = req.body;
-        dados.numeroOS = Date.now(); // Gera um ID único numérico
+        dados.numeroOS = Date.now();
+        
+        // Se houver peça vinculada, verificamos se tem estoque (opcional, aqui só vincula)
+        // A baixa no estoque acontece na conclusão para não dar erro se cancelar.
+        
         const novaOS = await OrdemServico.create(dados);
         res.json(novaOS);
-    } catch (e) {
-        res.status(500).json({ erro: e.message });
-    }
+    } catch (e) { res.status(500).json({ erro: e.message }); }
 });
-
-// Listar todas as OS
 app.get('/api/os', authMiddleware, async (req, res) => {
-    const lista = await OrdemServico.find().sort({ dataEntrada: -1 });
-    res.json(lista);
+    res.json(await OrdemServico.find().sort({ dataEntrada: -1 }));
 });
-
-// Buscar OS Individual
 app.get('/api/os/:id', async (req, res) => {
     try {
         const os = await OrdemServico.findById(req.params.id);
@@ -234,28 +265,27 @@ app.get('/api/os/:id', async (req, res) => {
         res.json(os);
     } catch (e) { res.status(500).json({ erro: "Erro interno" }); }
 });
-
-// Salvar Assinatura
 app.put('/api/os/:id/assinar', async (req, res) => {
     try {
-        const { assinatura } = req.body;
-        await OrdemServico.findByIdAndUpdate(req.params.id, { assinaturaCliente: assinatura });
+        await OrdemServico.findByIdAndUpdate(req.params.id, { assinaturaCliente: req.body.assinatura });
         res.json({ ok: true });
-    } catch (e) { res.status(500).json({ erro: "Erro ao salvar assinatura" }); }
+    } catch (e) { res.status(500).json({ erro: "Erro" }); }
 });
 
-// CONCLUIR OS E LANÇAR NO CAIXA
+// CONCLUIR OS + FINANCEIRO + BAIXA DE ESTOQUE
 app.post('/api/os/:id/concluir', authMiddleware, async (req, res) => {
     try {
         const { valorFinal } = req.body;
         
-        // Atualiza status e valor final na OS
+        // Busca a OS antes de atualizar para ver se tem peça
+        const osAntes = await OrdemServico.findById(req.params.id);
+
         const os = await OrdemServico.findByIdAndUpdate(req.params.id, { 
             status: 'Concluido', 
             valorFinal: valorFinal 
         }, { new: true });
 
-        // Lança entrada no Financeiro se houver valor
+        // 1. Lança Financeiro
         if (valorFinal && valorFinal > 0) {
             await Financeiro.create({
                 tipo: 'entrada',
@@ -264,12 +294,19 @@ app.post('/api/os/:id/concluir', authMiddleware, async (req, res) => {
                 origem: 'os'
             });
         }
+
+        // 2. Baixa no Estoque (Se tiver peça vinculada e ainda não foi baixada)
+        // Simplificação: Baixa sempre que conclui.
+        if (osAntes.idPecaVinculada) {
+            await Estoque.findByIdAndUpdate(osAntes.idPecaVinculada, { 
+                $inc: { quantidade: -1 } 
+            });
+        }
         
         res.json(os);
     } catch (e) { res.status(500).json({ erro: "Erro ao concluir OS" }); }
 });
 
-// Deletar OS
 app.delete('/api/os/:id', authMiddleware, async (req, res) => {
     await OrdemServico.findByIdAndDelete(req.params.id);
     res.json({ ok: true });
