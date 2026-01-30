@@ -23,7 +23,7 @@ if (!mongoURI) {
         .catch(err => console.error('❌ Erro de Conexão MongoDB:', err));
 }
 
-// Aumentando limite para suportar imagens base64 (assinaturas)
+// Aumentando limite para suportar imagens base64 (assinaturas grandes)
 app.use(express.json({ limit: '50mb' }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
@@ -86,10 +86,11 @@ const OSSchema = new mongoose.Schema({
         carregamento: String,
         sensores: String
     },
+    servico: String, // <--- NOVO CAMPO: Tipo de serviço (Troca de tela, etc)
     defeitoRelatado: String,
-    valor: String, // Valor do Orçamento Inicial (String para aceitar formatação livre)
-    status: { type: String, default: 'Aberto' }, // Aberto, Aguardando Peça, Concluido
-    valorFinal: { type: Number }, // Valor cobrado ao concluir (Number para somar no caixa)
+    valor: String, // Valor do Orçamento Inicial
+    status: { type: String, default: 'Aberto' }, // Aberto, Concluido
+    valorFinal: { type: Number }, // Valor recebido ao concluir
     assinaturaCliente: String, // Imagem Base64
     dataEntrada: { type: Date, default: Date.now },
     numeroOS: { type: Number } // ID curto numérico
@@ -211,7 +212,7 @@ app.delete('/api/financeiro/:id', authMiddleware, async (req, res) => {
 app.post('/api/os', authMiddleware, async (req, res) => {
     try {
         const dados = req.body;
-        dados.numeroOS = Date.now(); // Gera um ID único numérico baseado no tempo
+        dados.numeroOS = Date.now(); // Gera um ID único numérico
         const novaOS = await OrdemServico.create(dados);
         res.json(novaOS);
     } catch (e) {
@@ -225,7 +226,7 @@ app.get('/api/os', authMiddleware, async (req, res) => {
     res.json(lista);
 });
 
-// Buscar OS Individual (Necessário para a página de assinatura e reimpressão)
+// Buscar OS Individual
 app.get('/api/os/:id', async (req, res) => {
     try {
         const os = await OrdemServico.findById(req.params.id);
@@ -234,7 +235,7 @@ app.get('/api/os/:id', async (req, res) => {
     } catch (e) { res.status(500).json({ erro: "Erro interno" }); }
 });
 
-// Salvar Assinatura (Rota pública/autenticada mista para permitir celular enviar)
+// Salvar Assinatura
 app.put('/api/os/:id/assinar', async (req, res) => {
     try {
         const { assinatura } = req.body;
