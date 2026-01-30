@@ -40,7 +40,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 sensores: document.getElementById('ck-sensores').value
             },
             defeitoRelatado: document.getElementById('os-defeito').value,
-            // CAPTURA DO VALOR DO ORÇAMENTO
+            // NOVOS CAMPOS
+            servico: document.getElementById('os-servico').value,
             valor: document.getElementById('os-valor').value
         };
 
@@ -71,7 +72,7 @@ document.addEventListener('DOMContentLoaded', () => {
             area.scrollIntoView({ behavior: 'smooth' });
             
             carregarOSHistory();
-            alert(`OS Criada! Valor Orçamento: ${dados.valor || 'Não informado'}. Peça a assinatura.`);
+            alert(`OS Criada! Serviço: ${dados.servico}. Peça a assinatura.`);
 
         } catch(e) { alert("Erro ao criar OS: " + e.message); }
         finally { btn.innerHTML = originalText; btn.disabled = false; }
@@ -81,26 +82,28 @@ document.addEventListener('DOMContentLoaded', () => {
         if(!osAtualID) return alert("Nenhuma OS selecionada recentemente.");
         
         try {
-            const res = await fetch(`/api/os/${osAtualID}`);
+            // CORREÇÃO DO ERRO DE ASSINATURA:
+            // Adicionado timestamp (?t=...) para evitar que o navegador use versão cacheada sem assinatura
+            const res = await fetch(`/api/os/${osAtualID}?t=${Date.now()}`);
             const os = await res.json();
             
             if(os.assinaturaCliente) {
-                alert("✅ Assinatura detectada! Gerando PDF...");
+                alert("✅ Assinatura CONFIRMADA! Gerando PDF...");
                 
-                // ESCONDE A TELA DE PENDÊNCIA PARA RESOLVER O ERRO VISUAL
+                // Esconde a tela de assinatura imediatamente
                 document.getElementById('area-assinatura-os').style.display = 'none';
                 
                 gerarPDFOS(os);
                 limparFormularioOS();
             } else {
-                alert("❌ O cliente ainda não assinou. Peça para ele clicar em 'ENVIAR' no celular.");
+                alert("❌ O cliente ainda não enviou a assinatura. Peça para ele clicar em 'ENVIAR' na tela do celular.");
             }
-        } catch(e) { alert("Erro ao verificar assinatura."); }
+        } catch(e) { alert("Erro de conexão ao verificar assinatura."); }
     };
 
-    // --- NOVA LÓGICA: CONCLUIR OS E LANÇAR NO FINANCEIRO ---
+    // --- CONCLUIR OS E LANÇAR NO FINANCEIRO ---
     window.concluirOS = async (id) => {
-        const valorStr = prompt("Qual o valor final recebido do cliente? (Use ponto ou vírgula)");
+        const valorStr = prompt("Qual o valor final recebido? (Use ponto ou vírgula)");
         
         if(valorStr === null) return; // Cancelou
 
@@ -117,7 +120,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             
             if(res.ok) {
-                alert(`✅ OS Concluída! R$ ${valor.toFixed(2)} lançado no Financeiro.`);
+                alert(`✅ Serviço Concluído! R$ ${valor.toFixed(2)} lançado no Financeiro.`);
                 carregarOSHistory();
             } else {
                 alert("Erro ao concluir OS.");
@@ -164,7 +167,8 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     window.reimprimirOS = async (id) => {
-        const res = await fetch(`/api/os/${id}`);
+        // Busca versão mais recente com anti-cache
+        const res = await fetch(`/api/os/${id}?t=${Date.now()}`);
         const os = await res.json();
         gerarPDFOS(os);
     };
@@ -189,7 +193,7 @@ document.addEventListener('DOMContentLoaded', () => {
         osAtualID = null;
     }
 
-    // --- GERADOR PDF OS COM VALOR ---
+    // --- GERADOR PDF OS COM NOVOS CAMPOS ---
     function gerarPDFOS(os) {
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF();
@@ -211,13 +215,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Aparelho
         doc.setFillColor(230,230,230); doc.rect(10, y, 190, 8, 'F');
-        doc.setFont("helvetica", "bold"); doc.text("APARELHO & DEFEITO", 15, y+6); y+=15;
+        doc.setFont("helvetica", "bold"); doc.text("APARELHO E SERVIÇO", 15, y+6); y+=15;
         doc.setFont("helvetica", "normal");
         doc.text(`Modelo: ${os.aparelho.modelo}`, 15, y);
         doc.text(`IMEI: ${os.aparelho.imei}`, 100, y); y+=7;
         doc.text(`Senha: ${os.aparelho.senha || 'Sem senha'}`, 15, y);
         doc.text(`Acessórios: ${os.aparelho.acessorios || 'Nenhum'}`, 100, y); y+=10;
         
+        // NOVO CAMPO: SERVIÇO
+        doc.setFont("helvetica", "bold"); doc.text("Serviço a Realizar:", 15, y); y+=7;
+        doc.setFont("helvetica", "normal"); doc.text(os.servico || "Não especificado", 15, y); y+=10;
+
         doc.setFont("helvetica", "bold"); doc.text("Defeito Relatado:", 15, y); y+=7;
         doc.setFont("helvetica", "normal");
         doc.text(os.defeitoRelatado || "Não informado", 15, y, {maxWidth: 180}); y+=15;
@@ -478,10 +486,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // === TABELA DE PREÇOS (BUSCA) ===
     
-    // *** ATENÇÃO: COLE SUA LISTA DE PREÇOS AQUI ABAIXO ***
+    // *** ATENÇÃO: COLE SUA LISTA DE PREÇOS COMPLETA AQUI ABAIXO ***
     const bancoPrecos = [
         { m: "Samsung", mod: "Galaxy A01 Core", serv: "100", blq: "50", ok: "150" },
-        { m: "Samsung", mod: "Galaxy A10", serv: "120", blq: "80", ok: "200" },
         // ... COLE O RESTANTE DA SUA LISTA AQUI ...
     ];
 
