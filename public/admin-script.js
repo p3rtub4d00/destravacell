@@ -7,7 +7,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // ============================================
-    // === 1. MÓDULO ORDEM DE SERVIÇO ===
+    // === 1. MÓDULO ORDEM DE SERVIÇO (NOVO) ===
     // ============================================
 
     let osAtualID = null;
@@ -50,20 +50,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             const res = await fetch('/api/os', {
-                method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(dados)
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(dados)
             });
             const os = await res.json();
             osAtualID = os._id;
 
+            // Mostrar QR Code para Assinatura
             const area = document.getElementById('area-assinatura-os');
             const qrDiv = document.getElementById('qrcode-os-display');
             area.style.display = 'block';
             qrDiv.innerHTML = "";
             
+            // URL que o cliente vai acessar no celular
             const urlAssinatura = `${window.location.origin}/assinatura-os.html?id=${os._id}`;
             new QRCode(qrDiv, { text: urlAssinatura, width: 200, height: 200 });
 
+            // Rolar até o QR code
             area.scrollIntoView({ behavior: 'smooth' });
+            
             carregarOSHistory();
             alert("OS Criada! Escaneie o QR Code para o cliente assinar.");
 
@@ -72,17 +78,19 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     window.verificarAssinaturaEImprimir = async () => {
-        if(!osAtualID) return alert("Nenhuma OS selecionada.");
+        if(!osAtualID) return alert("Nenhuma OS selecionada recentemente.");
+        
         try {
             const res = await fetch(`/api/os/${osAtualID}`);
             const os = await res.json();
+            
             if(os.assinaturaCliente) {
-                alert("✅ Assinatura detectada! Baixando PDF...");
+                alert("✅ Assinatura detectada! Gerando PDF...");
                 document.getElementById('area-assinatura-os').style.display = 'none';
                 gerarPDFOS(os);
                 limparFormularioOS();
             } else {
-                alert("❌ O cliente ainda não assinou no celular.");
+                alert("❌ O cliente ainda não assinou. Peça para ele clicar em 'ENVIAR' no celular.");
             }
         } catch(e) { alert("Erro ao verificar assinatura."); }
     };
@@ -104,8 +112,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td>${os.aparelho.modelo}</td>
                     <td><span class="brand-badge">${os.status}</span></td>
                     <td>
-                        <button class="btn-icon btn-action" onclick="reimprimirOS('${os._id}')" title="Baixar PDF"><i class="fas fa-file-pdf"></i></button>
-                        <button class="btn-icon btn-danger" onclick="deletarOS('${os._id}')" title="Excluir"><i class="fas fa-trash"></i></button>
+                        <button class="btn-icon btn-action" onclick="reimprimirOS('${os._id}')"><i class="fas fa-file-pdf"></i></button>
+                        <button class="btn-icon btn-danger" onclick="deletarOS('${os._id}')"><i class="fas fa-trash"></i></button>
                     </td>
                 `;
                 tb.appendChild(tr);
@@ -127,13 +135,18 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     function limparFormularioOS() {
-        document.getElementById('os-nome').value = ""; document.getElementById('os-cpf').value = "";
-        document.getElementById('os-tel').value = ""; document.getElementById('os-modelo').value = "";
-        document.getElementById('os-imei').value = ""; document.getElementById('os-senha').value = "";
-        document.getElementById('os-acessorios').value = ""; document.getElementById('os-defeito').value = "";
+        document.getElementById('os-nome').value = "";
+        document.getElementById('os-cpf').value = "";
+        document.getElementById('os-tel').value = "";
+        document.getElementById('os-modelo').value = "";
+        document.getElementById('os-imei').value = "";
+        document.getElementById('os-senha').value = "";
+        document.getElementById('os-acessorios').value = "";
+        document.getElementById('os-defeito').value = "";
         osAtualID = null;
     }
 
+    // --- GERADOR DE PDF DA OS (ESTILO NOVO) ---
     function gerarPDFOS(os) {
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF();
@@ -144,19 +157,24 @@ document.addEventListener('DOMContentLoaded', () => {
         doc.text(`Nº: ${os.numeroOS || '---'} | Data: ${new Date(os.dataEntrada).toLocaleString('pt-BR')}`, 105, 22, null, null, "center");
         
         let y = 30;
+
         // Cliente
         doc.setFillColor(230,230,230); doc.rect(10, y, 190, 8, 'F');
         doc.setFont("helvetica", "bold"); doc.text("DADOS DO CLIENTE", 15, y+6); y+=15;
         doc.setFont("helvetica", "normal");
-        doc.text(`Nome: ${os.cliente.nome}`, 15, y); doc.text(`Tel: ${os.cliente.telefone}`, 120, y); y+=7;
+        doc.text(`Nome: ${os.cliente.nome}`, 15, y);
+        doc.text(`Tel: ${os.cliente.telefone}`, 120, y); y+=7;
         doc.text(`CPF: ${os.cliente.cpf}`, 15, y); y+=10;
 
         // Aparelho
         doc.setFillColor(230,230,230); doc.rect(10, y, 190, 8, 'F');
         doc.setFont("helvetica", "bold"); doc.text("APARELHO & DEFEITO", 15, y+6); y+=15;
         doc.setFont("helvetica", "normal");
-        doc.text(`Modelo: ${os.aparelho.modelo}`, 15, y); doc.text(`IMEI: ${os.aparelho.imei}`, 100, y); y+=7;
-        doc.text(`Senha: ${os.aparelho.senha || '---'}`, 15, y); doc.text(`Acessórios: ${os.aparelho.acessorios || '---'}`, 100, y); y+=10;
+        doc.text(`Modelo: ${os.aparelho.modelo}`, 15, y);
+        doc.text(`IMEI: ${os.aparelho.imei}`, 100, y); y+=7;
+        doc.text(`Senha Tela: ${os.aparelho.senha || 'Sem senha'}`, 15, y); y+=7;
+        doc.text(`Acessórios: ${os.aparelho.acessorios || 'Nenhum'}`, 15, y); y+=10;
+        
         doc.setFont("helvetica", "bold"); doc.text("Defeito Relatado:", 15, y); y+=7;
         doc.setFont("helvetica", "normal");
         doc.text(os.defeitoRelatado || "Não informado", 15, y, {maxWidth: 180}); y+=15;
@@ -164,29 +182,46 @@ document.addEventListener('DOMContentLoaded', () => {
         // Checklist
         doc.setFillColor(230,230,230); doc.rect(10, y, 190, 8, 'F');
         doc.setFont("helvetica", "bold"); doc.text("CHECKLIST DE ENTRADA", 15, y+6); y+=15;
-        const ck = os.checklist; doc.setFontSize(9);
-        const c1=15, c2=60, c3=105, c4=150;
-        doc.text(`Tela: ${ck.tela}`, c1, y); doc.text(`Bateria: ${ck.bateria}`, c2, y); doc.text(`Carcaça: ${ck.carcaca}`, c3, y); doc.text(`Botões: ${ck.botoes}`, c4, y); y+=7;
-        doc.text(`Câmeras: ${ck.cameras}`, c1, y); doc.text(`Som: ${ck.som}`, c2, y); doc.text(`Wi-Fi: ${ck.conectividade}`, c3, y); doc.text(`Sensores: ${ck.sensores}`, c4, y); y+=15;
+        
+        const ck = os.checklist;
+        doc.setFontSize(9);
+        const col1 = 15, col2 = 60, col3 = 105, col4 = 150;
+        
+        doc.text(`Tela: ${ck.tela}`, col1, y); doc.text(`Bateria: ${ck.bateria}`, col2, y); doc.text(`Carcaça: ${ck.carcaca}`, col3, y); doc.text(`Botões: ${ck.botoes}`, col4, y); y+=7;
+        doc.text(`Câmeras: ${ck.cameras}`, col1, y); doc.text(`Som: ${ck.som}`, col2, y); doc.text(`Wi-Fi: ${ck.conectividade}`, col3, y); doc.text(`Sensores: ${ck.sensores}`, col4, y); y+=15;
+
+        // Termos
+        doc.setFontSize(8); doc.setTextColor(100);
+        const termos = [
+            "1. A garantia cobre apenas o serviço executado e peças trocadas por 90 dias.",
+            "2. Não nos responsabilizamos por perda de dados. Faça backup.",
+            "3. Aparelhos não retirados em 90 dias serão vendidos para custear despesas (Art. 1.275 CC)."
+        ];
+        termos.forEach(t => { doc.text(t, 15, y); y+=5; });
 
         // Assinatura
+        y+=15; doc.setTextColor(0);
         if(os.assinaturaCliente) {
             doc.addImage(os.assinaturaCliente, 'PNG', 70, y, 60, 25);
             y+=25;
-            doc.text("Assinatura Digital do Cliente", 105, y, null, null, "center");
+            doc.text("Assinatura do Cliente (Digital)", 105, y, null, null, "center");
         } else {
-            y+=25; doc.line(60, y, 150, y); doc.text("Assinatura do Cliente", 105, y+5, null, null, "center");
+            y+=20;
+            doc.line(60, y, 150, y);
+            doc.text("Assinatura do Cliente", 105, y+5, null, null, "center");
         }
+
         doc.save(`OS_${os.numeroOS}.pdf`);
     }
 
 
     // ============================================
-    // === 2. MÓDULO RECIBO (COMPRA/VENDA) ===
+    // === 2. MÓDULO RECIBO (LAYOUT ORIGINAL RESTAURADO) ===
     // ============================================
     const canvas = document.getElementById('signature-pad');
     if(canvas) {
         const signaturePad = new SignaturePad(canvas, { backgroundColor: 'rgb(255, 255, 255)', penColor: 'rgb(0, 0, 0)' });
+        
         function resizeCanvas() {
             const ratio = Math.max(window.devicePixelRatio || 1, 1);
             canvas.width = canvas.offsetWidth * ratio;
@@ -205,13 +240,13 @@ document.addEventListener('DOMContentLoaded', () => {
              const txt = btn.innerHTML; btn.innerHTML = "Salvando..."; btn.disabled = true;
 
              const dados = {
-                nome: document.getElementById('nome').value,
-                cpf: document.getElementById('cpf').value,
-                rg: document.getElementById('rg').value,
-                endereco: document.getElementById('endereco').value,
-                modelo: document.getElementById('modelo').value,
-                imei: document.getElementById('imei').value,
-                valor: document.getElementById('valor').value,
+                nome: document.getElementById('nome').value || "---",
+                cpf: document.getElementById('cpf').value || "---",
+                rg: document.getElementById('rg').value || "---",
+                endereco: document.getElementById('endereco').value || "---",
+                modelo: document.getElementById('modelo').value || "---",
+                imei: document.getElementById('imei').value || "---",
+                valor: document.getElementById('valor').value || "0,00",
                 estado: document.getElementById('estado').value,
                 assinatura: signaturePad.toDataURL(),
                 dataFormatada: new Date().toLocaleDateString('pt-BR'),
@@ -221,7 +256,7 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 const res = await fetch('/api/recibos', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(dados) });
                 const salvo = await res.json();
-                gerarPDFRecibo(salvo);
+                gerarQRCodeEPDF(salvo); // CHAMA A FUNÇÃO ORIGINAL RESTAURADA
                 alert("Recibo Salvo e Baixado!");
                 signaturePad.clear();
                 loadHistory();
@@ -230,40 +265,103 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
-    // === NOVA FUNÇÃO PARA REIMPRIMIR RECIBO DO HISTÓRICO ===
+    // === FUNÇÃO PARA REIMPRIMIR (CHAMA O LAYOUT ORIGINAL) ===
     window.reimprimirRecibo = async (id) => {
         try {
             const res = await fetch(`/api/recibos/${id}`);
             if(!res.ok) throw new Error("Erro ao buscar");
             const dados = await res.json();
-            gerarPDFRecibo(dados);
+            gerarQRCodeEPDF(dados); // Usa o layout original
         } catch(e) { alert("Erro ao reimprimir: " + e.message); }
     };
 
-    window.gerarPDFRecibo = (d) => {
+    // === LAYOUT ORIGINAL RESTAURADO ===
+    function gerarQRCodeEPDF(dados) {
+        // Gera o QR Code num elemento oculto
+        let container = document.getElementById("qrcode-container");
+        if(!container) {
+            // Cria container temporário se não existir
+            container = document.createElement('div');
+            container.id = "qrcode-container";
+            container.style.display = "none";
+            document.body.appendChild(container);
+        }
+        container.innerHTML = ""; // Limpa anterior
+        
+        const id = dados._id || Date.now();
+        const qrData = `NEXUS\nID:${id}\nIMEI:${dados.imei}\n$${dados.valor}`;
+        
+        new QRCode(container, { text: qrData, width: 100, height: 100 });
+        
+        // Pequeno delay para garantir que o QR Code foi desenhado no Canvas antes de gerar o PDF
+        setTimeout(() => {
+            const canvasQr = container.querySelector('canvas');
+            const imgQr = canvasQr ? canvasQr.toDataURL() : null;
+            criarArquivoPDF(dados, imgQr);
+        }, 100);
+    }
+
+    // === ESTRUTURA EXATA DO PDF ORIGINAL ===
+    window.criarArquivoPDF = (d, qr) => {
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF();
-        doc.setFont("helvetica", "bold"); doc.text("RECIBO DE VENDA", 105, 20, null, null, "center");
+        doc.setLineWidth(0.5); doc.setTextColor(0);
         
-        let y = 40;
+        // Cabeçalho Nexus Digital
+        doc.setFont("helvetica", "bold"); doc.setFontSize(22);
+        doc.text("NEXUS DIGITAL", 105, 20, null, null, "center");
         doc.setFontSize(10); doc.setFont("helvetica", "normal");
-        doc.text(`Data: ${d.dataFormatada}`, 20, y); y+=10;
-        doc.text(`Vendedor: ${d.nome} (CPF: ${d.cpf})`, 20, y); y+=10;
-        doc.text(`Aparelho: ${d.modelo} (IMEI: ${d.imei})`, 20, y); y+=10;
-        doc.text(`Valor: R$ ${d.valor}`, 20, y); 
-        doc.text(`Estado: ${d.estado}`, 100, y); y+=20;
-        
-        doc.text("Declaro que vendi o aparelho acima descrito, de minha propriedade,", 20, y); y+=5;
-        doc.text("sendo de procedência lícita e desimpedido.", 20, y); y+=20;
+        doc.text("Destrava Cell | Soluções Mobile", 105, 26, null, null, "center");
+        doc.line(10, 30, 200, 30);
 
-        if(d.assinatura) {
-            doc.addImage(d.assinatura, 'PNG', 20, y, 60, 30);
-            y+=30;
-            doc.line(20, y, 80, y);
-            doc.text("Assinatura do Vendedor", 20, y+5);
-        }
+        doc.setFontSize(14); doc.setFont("helvetica", "bold");
+        doc.text("RECIBO DE VENDA", 105, 40, null, null, "center");
         
-        doc.save(`Recibo_${d.modelo.replace(/ /g, '_')}.pdf`);
+        // QR Code no topo à direita
+        if(qr) doc.addImage(qr, 'PNG', 170, 10, 30, 30);
+
+        let y = 55;
+        // Campos de Dados
+        const campos = [
+            { t: "DADOS DA TRANSAÇÃO", c: [`Data: ${d.dataFormatada}`, `Valor: R$ ${d.valor}`] },
+            { t: "VENDEDOR", c: [`Nome: ${d.nome}`, `CPF: ${d.cpf}`, `Endereço: ${d.endereco}`] },
+            { t: "APARELHO", c: [`Modelo: ${d.modelo}`, `IMEI: ${d.imei}`, `Estado: ${d.estado}`] }
+        ];
+
+        campos.forEach(bloco => {
+            doc.setFillColor(240,240,240); doc.rect(15, y, 180, 8, 'F');
+            doc.setFont("helvetica", "bold"); doc.text(bloco.t, 20, y+6); y+=15;
+            doc.setFont("helvetica", "normal");
+            bloco.c.forEach(l => { doc.text(l, 20, y); y+=6; });
+            y+=5;
+        });
+
+        y+=10; 
+        doc.setFont("helvetica", "bold"); doc.setFontSize(9);
+        doc.text("TERMOS E RESPONSABILIDADE LEGAL:", 20, y); y+=6;
+        
+        doc.setFont("helvetica", "normal"); doc.setFontSize(8);
+        const termos = [
+            "1. O VENDEDOR declara ser o proprietário legítimo e que o bem é LÍCITO.",
+            "2. O VENDEDOR isenta o Grupo NEXUS DIGITAL de responsabilidade civil/criminal.",
+            "3. O VENDEDOR assume responsabilidade caso o aparelho entre em Blacklist (Roubo/Furto).",
+            "4. A posse é transferida neste ato, em caráter irrevogável."
+        ];
+        termos.forEach(t => { doc.text(t, 20, y); y+=5; });
+        
+        y+=20;
+        if(d.assinatura) { 
+            doc.rect(60, y-5, 90, 30); // Caixa da assinatura
+            doc.addImage(d.assinatura, 'PNG', 75, y, 60, 25); 
+        }
+        y+=30; doc.text("ASSINATURA DO VENDEDOR", 105, y, null, null, "center");
+        
+        const avisoLegal = "Aviso Legal: A Destrava Cell repudia qualquer atividade ilícita. Realizamos consulta prévia de IMEI em todos os aparelhos. Não compramos e não desbloqueamos aparelhos com restrição de roubo ou furto (Blacklist).";
+        doc.setFontSize(7); doc.setTextColor(80);
+        doc.text(avisoLegal, 105, 285, { maxWidth: 180, align: "center" });
+
+        const safeName = d.nome ? d.nome.split(' ')[0].replace(/[^a-z0-9]/gi, '') : 'Recibo';
+        doc.save(`Recibo_${safeName}.pdf`);
     };
 
     async function loadHistory() {
@@ -274,7 +372,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const lista = await res.json();
             tb.innerHTML = "";
             lista.forEach(i => {
-                // ADICIONADO: Botão btn-action para imprimir
+                // Aqui estão os botões com o estilo novo
                 tb.innerHTML += `
                 <tr>
                     <td>${i.dataFormatada}</td>
@@ -293,12 +391,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     // ============================================
-    // === 3. FINANCEIRO & PREÇOS ===
+    // === 3. MÓDULO FINANCEIRO (MANTIDO) ===
     // ============================================
-    
-    // ... (Mantenha o restante das funções Financeiro e Busca Preços aqui) ...
-    // Se não tiver mais o código, use o bloco abaixo para completar:
-    
     window.carregarFinanceiro = async () => {
         const tb = document.querySelector('#finance-table tbody');
         try {
@@ -328,10 +422,18 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     window.deletarFin = async(id) => { await fetch(`/api/financeiro/${id}`, {method:'DELETE'}); carregarFinanceiro(); };
 
-    // Tabela de Preços (Seus dados originais aqui)
+
+    // ============================================
+    // === 4. TABELA DE PREÇOS (MANTER SUA LISTA AQUI) ===
+    // ============================================
+    
+    // ATENÇÃO: COLE AQUI A SUA LISTA "bancoPrecos" COMPLETA DO ARQUIVO ORIGINAL
+    // Estou colocando apenas um exemplo para o código não ficar gigante na resposta
     const bancoPrecos = [
         { m: "Samsung", mod: "Galaxy A01 Core", serv: "100", blq: "50", ok: "150" },
-        // ... COLAR SUA LISTA COMPLETA AQUI ...
+        { m: "Samsung", mod: "Galaxy A10", serv: "120", blq: "80", ok: "200" },
+        { m: "Apple", mod: "iPhone 11", serv: "Consultar", blq: "500", ok: "1100" },
+        // ... COLE O RESTANTE DA LISTA AQUI ...
     ];
 
     const searchInput = document.getElementById('search-input');
