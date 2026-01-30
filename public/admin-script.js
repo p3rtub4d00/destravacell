@@ -82,8 +82,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if(!osAtualID) return alert("Nenhuma OS selecionada recentemente.");
         
         try {
-            // CORREÇÃO DO ERRO DE ASSINATURA:
-            // Adicionado timestamp (?t=...) para evitar que o navegador use versão cacheada sem assinatura
+            // CORREÇÃO DO ERRO DE ASSINATURA (CACHE)
             const res = await fetch(`/api/os/${osAtualID}?t=${Date.now()}`);
             const os = await res.json();
             
@@ -388,8 +387,10 @@ document.addEventListener('DOMContentLoaded', () => {
             { t: "APARELHO", c: [`Modelo: ${d.modelo}`, `IMEI: ${d.imei}`, `Estado: ${d.estado}`] }
         ];
 
+        // GERA OS BLOCOS CINZAS (EFEITOS VISUAIS)
         campos.forEach(bloco => {
-            doc.setFillColor(240,240,240); doc.rect(15, y, 180, 8, 'F');
+            doc.setFillColor(240,240,240); // Cor Cinza
+            doc.rect(15, y, 180, 8, 'F'); // Retângulo Preenchido
             doc.setFont("helvetica", "bold"); doc.text(bloco.t, 20, y+6); y+=15;
             doc.setFont("helvetica", "normal");
             bloco.c.forEach(l => { doc.text(l, 20, y); y+=6; });
@@ -404,8 +405,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const termos = [
             "1. As partes declaram que a transação é lícita e de boa fé.",
             "2. O aparelho foi verificado e testado no ato da transação.",
-            "3. Em caso de bloqueio futuro (Blacklist), o responsável legal será acionado.",
-            "4. A posse é transferida neste ato, em caráter irrevogável."
+            "3. Em caso de bloqueio futuro (Blacklist/Roubo), o responsável legal será acionado.",
+            "4. A posse é transferida neste ato, em caráter irrevogável.",
+            // --- NOVA CLÁUSULA SOLICITADA ---
+            "5. NÃO nos responsabilizamos por débitos anteriores (PayJoy, Financeiras). O VENDEDOR assume total responsabilidade."
         ];
         termos.forEach(t => { doc.text(t, 20, y); y+=5; });
         
