@@ -39,7 +39,7 @@
         .btn-icon { border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; transition: 0.2s; margin-right: 5px; font-size: 1rem; }
         .btn-action { background: #00ff88; color: #000; } 
         .btn-conclude { background: #00aaff; color: #fff; } 
-        .btn-zap { background: #25D366; color: #fff; } /* Verde WhatsApp */
+        .btn-zap { background: #25D366; color: #fff; } 
         .btn-danger { background: #ff4444; color: #fff; } 
         .checklist-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin-top: 15px; }
         .check-item { background: #111; padding: 10px; border-radius: 8px; border: 1px solid #333; }
@@ -65,7 +65,8 @@
         <div class="tabs">
             <button class="tab-btn active" onclick="openTab('tab-recibo')"><i class="fas fa-receipt"></i> Recibo</button>
             <button class="tab-btn" onclick="openTab('tab-os')"><i class="fas fa-tools"></i> O.S.</button>
-            <button class="tab-btn" onclick="openTab('tab-estoque')"><i class="fas fa-boxes"></i> Estoque</button> <button class="tab-btn" onclick="openTab('tab-financeiro')"><i class="fas fa-chart-line"></i> Financeiro</button>
+            <button class="tab-btn" onclick="openTab('tab-estoque')"><i class="fas fa-boxes"></i> Estoque</button>
+            <button class="tab-btn" onclick="openTab('tab-financeiro')"><i class="fas fa-chart-line"></i> Financeiro</button>
             <button class="tab-btn" onclick="openTab('tab-precos')"><i class="fas fa-tags"></i> Preços</button>
         </div>
 
@@ -89,7 +90,22 @@
                 <div class="form-group"><label>IMEI (*#06#)</label><input type="text" id="imei"></div>
                 <div class="row">
                     <div class="col"><div class="form-group"><label>Valor (R$)</label><input type="number" id="valor"></div></div>
-                    <div class="col"><div class="form-group"><label>Estado</label><select id="estado"><option value="Funcionando 100%">Funcionando 100%</option><option value="Bloqueado Conta Google">Bloqueado Conta Google</option><option value="Bloqueado MDM/Financeiro">Bloqueado MDM/Financeiro</option><option value="Tela Quebrada / Defeito">Tela Quebrada / Defeito</option><option value="Sucata">Sucata / Peças</option></select></div></div>
+                    <div class="col">
+                        <div class="form-group">
+                            <label>Estado</label>
+                            <select id="estado">
+                                <option value="Funcionando 100%">Funcionando 100% (Perfeito)</option>
+                                <option value="Tela Quebrada">Tela Quebrada (Mas liga)</option>
+                                <option value="Não Liga / Apagado">Não Liga / Apagado</option>
+                                <option value="Bloqueado Conta Google">Bloqueado Conta Google</option>
+                                <option value="Bloqueado Conta Mi (Xiaomi)">Bloqueado Conta Mi (Xiaomi)</option>
+                                <option value="Bloqueado iCloud (iPhone)">Bloqueado iCloud (iPhone)</option>
+                                <option value="Bloqueado MDM / Financeiro">Bloqueado MDM / Financeiro</option>
+                                <option value="Sem Sinal / Blacklist">Sem Sinal / Blacklist</option>
+                                <option value="Carcaça / Sucata">Carcaça / Sucata</option>
+                            </select>
+                        </div>
+                    </div>
                 </div>
                 <h4 style="color:var(--primary-color); margin-top:25px;">Assinatura</h4>
                 <div class="signature-wrapper"><canvas id="signature-pad"></canvas></div>
@@ -123,6 +139,8 @@
                         <option value="Troca de Vidro Traseiro">Troca de Vidro Traseiro</option>
                         <option value="Desoxidação (Banho Químico)">Desoxidação</option>
                         <option value="Troca de Câmera">Troca de Câmera</option>
+                        <option value="Troca de Botões / Flex">Troca de Botões / Flex</option>
+                        <option value="Troca de Carcaça">Troca de Carcaça</option>
                         <option value="Análise / Orçamento">Análise / Orçamento</option>
                     </select>
                 </div>
@@ -131,7 +149,7 @@
                     <label style="color: #ffaa00; font-weight: bold;">PEÇA DO ESTOQUE (Opcional - Baixa Automática)</label>
                     <select id="os-peca-estoque" style="background: #000; border: 1px solid #555; height: 45px;">
                         <option value="">-- Nenhuma / Apenas Serviço --</option>
-                        </select>
+                    </select>
                     <small style="color:#888;">Ao concluir a OS, esta peça será descontada do estoque.</small>
                 </div>
 
@@ -219,8 +237,6 @@
             document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
             document.getElementById(t).classList.add('active');
             event.currentTarget.classList.add('active');
-            
-            // Recarrega dados conforme a aba
             if(t==='tab-os') { window.carregarOSHistory(); window.carregarDropdownPecas(); }
             if(t==='tab-financeiro') window.carregarFinanceiro();
             if(t==='tab-estoque') window.carregarEstoque();
