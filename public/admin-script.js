@@ -58,6 +58,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 sensores: document.getElementById('ck-sensores').value
             },
             servico: document.getElementById('os-servico').value,
+            estadoGeral: document.getElementById('os-estado').value, // CAPTURA O ESTADO GERAL
             defeitoRelatado: document.getElementById('os-defeito').value,
             valor: document.getElementById('os-valor').value,
             idPecaVinculada: idPeca,
@@ -100,10 +101,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if(os.assinaturaCliente) {
                 alert("✅ Assinatura CONFIRMADA! Gerando PDF...");
                 document.getElementById('area-assinatura-os').style.display = 'none';
-                
-                // GERA O PDF E O QR CODE DE RASTREIO
                 gerarPDFOS(os);
-                
                 limparFormularioOS();
             } else { alert("❌ O cliente ainda não enviou a assinatura."); }
         } catch(e) { alert("Erro."); }
@@ -129,8 +127,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if(!telefone) return alert("Cliente sem telefone.");
         const num = telefone.replace(/\D/g, '');
         let msg = status === 'Concluido' 
-            ? `Olá! Aqui é da Nexus Digital. Seu aparelho ${modelo} já está pronto e disponível para retirada! 🚀`
-            : `Olá! Aqui é da Nexus Digital. Passando para informar sobre seu aparelho ${modelo}. Status atual: ${status}.`;
+            ? `Olá! Aqui é da Destrava Cell. Seu aparelho ${modelo} já está pronto e disponível para retirada! 🚀`
+            : `Olá! Aqui é da Destrava Cell. Passando para informar sobre seu aparelho ${modelo}. Status atual: ${status}.`;
         window.open(`https://wa.me/55${num}?text=${encodeURIComponent(msg)}`, '_blank');
     };
 
@@ -166,23 +164,20 @@ document.addEventListener('DOMContentLoaded', () => {
         osAtualID = null;
     }
 
-    // PDF OS - COM QR CODE DE RASTREIO
+    // PDF OS
     function gerarPDFOS(os) {
-        // Gera o QR Code de Rastreio em um elemento oculto
         let qrContainer = document.getElementById('temp-qr-rastreio');
         if(!qrContainer) {
             qrContainer = document.createElement('div');
             qrContainer.id = 'temp-qr-rastreio';
-            qrContainer.style.display = 'none'; // Oculto
+            qrContainer.style.display = 'none';
             document.body.appendChild(qrContainer);
         }
         qrContainer.innerHTML = "";
         
-        // Link para a página de status
         const linkStatus = `${window.location.origin}/status.html`;
         new QRCode(qrContainer, { text: linkStatus, width: 100, height: 100 });
 
-        // Aguarda um momento para o QR ser gerado antes de criar o PDF
         setTimeout(() => {
             const canvasQr = qrContainer.querySelector('canvas');
             const imgQrRastreio = canvasQr ? canvasQr.toDataURL() : null;
@@ -190,51 +185,71 @@ document.addEventListener('DOMContentLoaded', () => {
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF();
             
-            // Layout Principal
-            doc.setFont("helvetica", "bold"); doc.setFontSize(18);
-            doc.text("ORDEM DE SERVIÇO", 105, 15, null, null, "center");
+            // TITULO DESTRAVA CELL
+            doc.setFont("helvetica", "bold"); doc.setFontSize(22);
+            doc.text("DESTRAVA CELL", 105, 15, null, null, "center");
             doc.setFontSize(10); doc.setFont("helvetica", "normal");
-            doc.text(`Nº: ${os.numeroOS || '---'} | Data: ${new Date(os.dataEntrada).toLocaleString('pt-BR')}`, 105, 22, null, null, "center");
+            doc.text("Soluções Mobile e Assistência Técnica", 105, 22, null, null, "center");
             
-            // INSERIR QR CODE DE RASTREIO NO CANTO DIREITO
+            doc.line(10, 25, 200, 25);
+            
+            doc.setFontSize(12); doc.setFont("helvetica", "bold");
+            doc.text(`ORDEM DE SERVIÇO Nº ${os.numeroOS || '---'}`, 15, 35);
+            doc.setFontSize(10); doc.setFont("helvetica", "normal");
+            doc.text(`Data: ${new Date(os.dataEntrada).toLocaleString('pt-BR')}`, 15, 42);
+
             if(imgQrRastreio) {
                 doc.addImage(imgQrRastreio, 'PNG', 170, 10, 25, 25);
                 doc.setFontSize(7);
-                doc.text("ACOMPANHE O STATUS", 182, 38, null, null, "center");
+                doc.text("ACOMPANHE", 182, 38, null, null, "center");
                 doc.setFontSize(10);
             }
 
-            let y = 45; // Baixei um pouco para caber o QR
+            let y = 50;
 
-            // Cliente
-            doc.setFillColor(230,230,230); doc.rect(10, y, 190, 8, 'F'); doc.setFont("helvetica", "bold"); doc.text("DADOS DO CLIENTE", 15, y+6); y+=15;
+            // CLIENTE
+            doc.setFillColor(230,230,230); doc.rect(10, y, 190, 8, 'F'); doc.setFont("helvetica", "bold"); doc.text("CLIENTE", 15, y+6); y+=15;
             doc.setFont("helvetica", "normal"); doc.text(`Nome: ${os.cliente.nome}`, 15, y); doc.text(`Tel: ${os.cliente.telefone}`, 120, y); y+=7;
             doc.text(`CPF: ${os.cliente.cpf}`, 15, y); y+=10;
 
-            // Aparelho
+            // APARELHO
             doc.setFillColor(230,230,230); doc.rect(10, y, 190, 8, 'F'); doc.setFont("helvetica", "bold"); doc.text("APARELHO E SERVIÇO", 15, y+6); y+=15;
-            doc.setFont("helvetica", "normal"); doc.text(`Modelo: ${os.aparelho.modelo}`, 15, y); doc.text(`IMEI: ${os.aparelho.imei}`, 100, y); y+=7;
-            doc.text(`Senha: ${os.aparelho.senha||'-'} | Acessórios: ${os.aparelho.acessorios||'-'}`, 15, y); y+=10;
+            doc.setFont("helvetica", "normal"); 
+            doc.text(`Modelo: ${os.aparelho.modelo}`, 15, y); 
+            doc.text(`IMEI: ${os.aparelho.imei}`, 100, y); y+=7;
+            
+            // ESTADO GERAL AGORA APARECE NO PDF
+            doc.text(`Estado Geral: ${os.estadoGeral || '-'}`, 15, y); 
+            doc.text(`Senha: ${os.aparelho.senha||'-'}`, 100, y); y+=7;
+            
+            doc.text(`Acessórios: ${os.aparelho.acessorios||'-'}`, 15, y); y+=10;
             
             doc.setFont("helvetica", "bold"); doc.text("Serviço:", 15, y); doc.setFont("helvetica", "normal"); doc.text(os.servico||'-', 35, y); y+=7;
             doc.setFont("helvetica", "bold"); doc.text("Defeito:", 15, y); doc.setFont("helvetica", "normal"); doc.text(os.defeitoRelatado||'-', 35, y); y+=15;
 
             if(os.nomePecaVinculada) {
-                 doc.setFont("helvetica", "bold"); doc.setFontSize(8); doc.text(`Peça Utilizada: ${os.nomePecaVinculada}`, 15, y-3); doc.setFontSize(10);
+                 doc.setFont("helvetica", "bold"); doc.setFontSize(8); doc.text(`Peça: ${os.nomePecaVinculada}`, 15, y-3); doc.setFontSize(10);
             }
 
-            if(os.valor) {
-                doc.setDrawColor(0); doc.setLineWidth(0.5); doc.rect(130, y-15, 60, 20); // Ajustei a posição Y do quadrado
-                doc.setFont("helvetica", "bold"); doc.text("ORÇAMENTO", 160, y-8, null, null, "center");
-                doc.setFontSize(14); doc.text(`R$ ${os.valor}`, 160, y, null, null, "center");
-                doc.setFontSize(10); doc.setFont("helvetica", "normal");
-            }
-
+            // CHECKLIST
             doc.setFillColor(230,230,230); doc.rect(10, y, 190, 8, 'F'); doc.setFont("helvetica", "bold"); doc.text("CHECKLIST", 15, y+6); y+=15;
             const ck = os.checklist; doc.setFontSize(9);
             doc.text(`Tela: ${ck.tela} | Bat: ${ck.bateria} | Carc: ${ck.carcaca}`, 15, y); y+=7;
             doc.text(`Bot: ${ck.botoes} | Câm: ${ck.cameras} | Som: ${ck.som}`, 15, y); y+=7;
             doc.text(`Rede: ${ck.conectividade} | Sens: ${ck.sensores}`, 15, y); y+=15;
+
+            // AREA DE TOTAIS E ORÇAMENTO (Posicionada no fim, à direita)
+            if(os.valor) {
+                // Desenha uma linha separadora antes
+                doc.line(10, y, 200, y); y+=10;
+                
+                // Caixa alinhada a direita
+                doc.setFontSize(12); doc.setFont("helvetica", "bold");
+                doc.text("TOTAL ORÇAMENTO:", 120, y);
+                doc.setFontSize(16);
+                doc.text(`R$ ${os.valor}`, 190, y, null, null, "right");
+                y+=10;
+            }
 
             doc.setFontSize(8); doc.setTextColor(100);
             ["1. Garantia de 90 dias.", "2. Não nos responsabilizamos por dados.", "3. Aparelhos não retirados em 90 dias serão vendidos."].forEach(t=>{doc.text(t,15,y);y+=5;});
@@ -244,7 +259,7 @@ document.addEventListener('DOMContentLoaded', () => {
             else { y+=20; doc.line(60, y, 150, y); doc.text("Assinatura Cliente", 105, y+5, null, null, "center"); }
             
             doc.save(`OS_${os.numeroOS}.pdf`);
-        }, 300); // 300ms de delay para garantir que o QR foi gerado
+        }, 300);
     }
 
     // --- RECIBOS ---
@@ -294,8 +309,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF();
         doc.setLineWidth(0.5); doc.setTextColor(0);
-        doc.setFont("helvetica", "bold"); doc.setFontSize(22); doc.text("NEXUS DIGITAL", 105, 20, null, null, "center");
-        doc.setFontSize(10); doc.setFont("helvetica", "normal"); doc.text("Destrava Cell | Soluções Mobile", 105, 26, null, null, "center");
+        doc.setFont("helvetica", "bold"); doc.setFontSize(22); doc.text("DESTRAVA CELL", 105, 20, null, null, "center");
+        doc.setFontSize(10); doc.setFont("helvetica", "normal"); doc.text("Soluções Mobile e Assistência Técnica", 105, 26, null, null, "center");
         doc.line(10, 30, 200, 30);
         const t = d.tipoOperacao==='compra'?"RECIBO DE COMPRA (AQUISIÇÃO)":"RECIBO DE VENDA";
         doc.setFontSize(14); doc.setFont("helvetica", "bold"); doc.text(t, 105, 40, null, null, "center");
