@@ -36,7 +36,7 @@ const UserSchema = new mongoose.Schema({
 });
 const User = mongoose.model('User', UserSchema);
 
-// NOVO: Schema de Estoque
+// Schema de Estoque
 const EstoqueSchema = new mongoose.Schema({
     nome: { type: String, required: true },
     quantidade: { type: Number, default: 0 },
@@ -90,13 +90,13 @@ const OSSchema = new mongoose.Schema({
     servico: String,
     defeitoRelatado: String,
     valor: String, 
-    status: { type: String, default: 'Aberto' }, // Aberto, Aguardando Peça, Concluido, Entregue
+    status: { type: String, default: 'Aberto' }, 
     valorFinal: { type: Number },
     assinaturaCliente: String,
     
-    // NOVO: Vínculo com Estoque
-    idPecaVinculada: String, // ID da peça no estoque
-    nomePecaVinculada: String, // Nome da peça (para histórico)
+    // Vínculo com Estoque
+    idPecaVinculada: String, 
+    nomePecaVinculada: String,
 
     dataEntrada: { type: Date, default: Date.now },
     numeroOS: { type: Number }
@@ -146,22 +146,16 @@ app.post('/api/logout', (req, res) => {
 
 app.get('/api/check-auth', authMiddleware, (req, res) => res.sendStatus(200));
 
-// --- ROTA PÚBLICA DE RASTREIO (OPÇÃO 2) ---
+// --- ROTA PÚBLICA DE RASTREIO ---
 app.get('/api/public/os/rastreio', async (req, res) => {
     try {
-        const { busca } = req.query; // Pode ser Nº OS ou CPF
+        const { busca } = req.query; 
         if (!busca) return res.status(400).json({ erro: "Digite o código da OS ou CPF" });
 
-        // Tenta achar por numeroOS (se for número) ou por CPF
         let query = {};
         if (!isNaN(busca)) {
-            // É numero? Tenta pelo ID da OS
-            // Como numeroOS é number e busca é string, convertemos ou buscamos exato
-             // Se o cliente digitar "1738249..." precisamos pegar os ultimos 4 digitos ou exato.
-             // Simplificação: Busca exata do numeroOS
              query = { numeroOS: parseInt(busca) };
         } else {
-            // Busca por CPF
             query = { "cliente.cpf": busca };
         }
 
@@ -169,14 +163,13 @@ app.get('/api/public/os/rastreio', async (req, res) => {
 
         if (!osFound) return res.status(404).json({ erro: "OS não encontrada." });
 
-        // Retorna APENAS dados públicos (segurança)
         res.json({
             numeroOS: osFound.numeroOS,
             modelo: osFound.aparelho.modelo,
             status: osFound.status,
             dataEntrada: osFound.dataEntrada,
             defeito: osFound.defeitoRelatado,
-            valor: osFound.valor // Valor orçamento
+            valor: osFound.valor 
         });
 
     } catch (e) { res.status(500).json({ erro: "Erro ao buscar OS" }); }
@@ -227,7 +220,7 @@ app.delete('/api/financeiro/:id', authMiddleware, async (req, res) => {
     res.json({ ok: true });
 });
 
-// --- ESTOQUE (OPÇÃO 4) ---
+// --- ESTOQUE ---
 app.get('/api/estoque', authMiddleware, async (req, res) => {
     res.json(await Estoque.find().sort({ nome: 1 }));
 });
@@ -247,10 +240,6 @@ app.post('/api/os', authMiddleware, async (req, res) => {
     try {
         const dados = req.body;
         dados.numeroOS = Date.now();
-        
-        // Se houver peça vinculada, verificamos se tem estoque (opcional, aqui só vincula)
-        // A baixa no estoque acontece na conclusão para não dar erro se cancelar.
-        
         const novaOS = await OrdemServico.create(dados);
         res.json(novaOS);
     } catch (e) { res.status(500).json({ erro: e.message }); }
@@ -272,20 +261,16 @@ app.put('/api/os/:id/assinar', async (req, res) => {
     } catch (e) { res.status(500).json({ erro: "Erro" }); }
 });
 
-// CONCLUIR OS + FINANCEIRO + BAIXA DE ESTOQUE
+// CONCLUIR OS
 app.post('/api/os/:id/concluir', authMiddleware, async (req, res) => {
     try {
         const { valorFinal } = req.body;
-        
-        // Busca a OS antes de atualizar para ver se tem peça
         const osAntes = await OrdemServico.findById(req.params.id);
-
         const os = await OrdemServico.findByIdAndUpdate(req.params.id, { 
             status: 'Concluido', 
             valorFinal: valorFinal 
         }, { new: true });
 
-        // 1. Lança Financeiro
         if (valorFinal && valorFinal > 0) {
             await Financeiro.create({
                 tipo: 'entrada',
@@ -294,15 +279,9 @@ app.post('/api/os/:id/concluir', authMiddleware, async (req, res) => {
                 origem: 'os'
             });
         }
-
-        // 2. Baixa no Estoque (Se tiver peça vinculada e ainda não foi baixada)
-        // Simplificação: Baixa sempre que conclui.
         if (osAntes.idPecaVinculada) {
-            await Estoque.findByIdAndUpdate(osAntes.idPecaVinculada, { 
-                $inc: { quantidade: -1 } 
-            });
+            await Estoque.findByIdAndUpdate(osAntes.idPecaVinculada, { $inc: { quantidade: -1 } });
         }
-        
         res.json(os);
     } catch (e) { res.status(500).json({ erro: "Erro ao concluir OS" }); }
 });
