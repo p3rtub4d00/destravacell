@@ -1,10 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
     
-    // === 0. LOGOUT & AUTH ===
-    window.logout = async () => {
-        await fetch('/api/logout', {method:'POST'});
-        window.location.href = 'login.html';
-    };
+    window.logout = async () => { await fetch('/api/logout', {method:'POST'}); window.location.href = 'login.html'; };
 
     // ============================================
     // === 1. ORDEM DE SERVIÇO (OS) ===
@@ -12,10 +8,35 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let osAtualID = null;
 
+    // Função para carregar peças no dropdown da OS
+    window.carregarDropdownPecas = async () => {
+        const select = document.getElementById('os-peca-estoque');
+        if(!select) return;
+        try {
+            const res = await fetch('/api/estoque');
+            const lista = await res.json();
+            // Mantém a primeira opção padrão
+            select.innerHTML = '<option value="">-- Nenhuma / Apenas Serviço --</option>';
+            lista.forEach(p => {
+                if(p.quantidade > 0) {
+                    const opt = document.createElement('option');
+                    opt.value = p._id;
+                    opt.textContent = `${p.nome} (Qtd: ${p.quantidade})`;
+                    select.appendChild(opt);
+                }
+            });
+        } catch(e) {}
+    };
+
     window.criarOS = async () => {
         const btn = document.querySelector('#tab-os .btn-generate');
         const originalText = btn.innerHTML;
         btn.innerText = "Criando..."; btn.disabled = true;
+
+        // Pega o elemento do select para obter o texto (nome da peça)
+        const selectPeca = document.getElementById('os-peca-estoque');
+        const idPeca = selectPeca.value;
+        const nomePeca = idPeca ? selectPeca.options[selectPeca.selectedIndex].text : null;
 
         const dados = {
             cliente: {
@@ -39,10 +60,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 conectividade: document.getElementById('ck-rede').value,
                 sensores: document.getElementById('ck-sensores').value
             },
-            defeitoRelatado: document.getElementById('os-defeito').value,
-            // NOVOS CAMPOS
             servico: document.getElementById('os-servico').value,
-            valor: document.getElementById('os-valor').value
+            defeitoRelatado: document.getElementById('os-defeito').value,
+            valor: document.getElementById('os-valor').value,
+            
+            // VINCULO COM ESTOQUE
+            idPecaVinculada: idPeca,
+            nomePecaVinculada: nomePeca
         };
 
         if(!dados.cliente.nome || !dados.aparelho.modelo) {
@@ -52,27 +76,22 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         try {
-            const res = await fetch('/api/os', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify(dados)
-            });
+            const res = await fetch('/api/os', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(dados) });
             const os = await res.json();
             osAtualID = os._id;
 
-            // Mostrar QR Code para Assinatura
             const area = document.getElementById('area-assinatura-os');
             const qrDiv = document.getElementById('qrcode-os-display');
             area.style.display = 'block';
             qrDiv.innerHTML = "";
-            
-            const urlAssinatura = `${window.location.origin}/assinatura-os.html?id=${os._id}`;
-            new QRCode(qrDiv, { text: urlAssinatura, width: 200, height: 200 });
+            new QRCode(qrDiv, { text: `${window.location.origin}/assinatura-os.html?id=${os._id}`, width: 200, height: 200 });
 
             area.scrollIntoView({ behavior: 'smooth' });
-            
             carregarOSHistory();
-            alert(`OS Criada! Serviço: ${dados.servico}. Peça a assinatura.`);
+            
+            let msg = "OS Criada!";
+            if(nomePeca) msg += ` Peça reservada: ${nomePeca}`;
+            alert(msg);
 
         } catch(e) { alert("Erro ao criar OS: " + e.message); }
         finally { btn.innerHTML = originalText; btn.disabled = false; }
@@ -80,51 +99,48 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.verificarAssinaturaEImprimir = async () => {
         if(!osAtualID) return alert("Nenhuma OS selecionada recentemente.");
-        
         try {
-            // CORREÇÃO DO ERRO DE ASSINATURA (CACHE)
             const res = await fetch(`/api/os/${osAtualID}?t=${Date.now()}`);
             const os = await res.json();
-            
             if(os.assinaturaCliente) {
                 alert("✅ Assinatura CONFIRMADA! Gerando PDF...");
-                
-                // Esconde a tela de assinatura imediatamente
                 document.getElementById('area-assinatura-os').style.display = 'none';
-                
                 gerarPDFOS(os);
                 limparFormularioOS();
-            } else {
-                alert("❌ O cliente ainda não enviou a assinatura. Peça para ele clicar em 'ENVIAR' na tela do celular.");
-            }
-        } catch(e) { alert("Erro de conexão ao verificar assinatura."); }
+            } else { alert("❌ O cliente ainda não enviou a assinatura."); }
+        } catch(e) { alert("Erro."); }
     };
 
-    // --- CONCLUIR OS E LANÇAR NO FINANCEIRO ---
     window.concluirOS = async (id) => {
-        const valorStr = prompt("Qual o valor final recebido? (Use ponto ou vírgula)");
-        
-        if(valorStr === null) return; // Cancelou
-
+        const valorStr = prompt("Valor final recebido? (Ponto ou vírgula)");
+        if(valorStr === null) return;
         const valor = parseFloat(valorStr.replace(',', '.'));
-        if(isNaN(valor) || valor <= 0) {
-            return alert("Valor inválido. Digite apenas números.");
-        }
+        if(isNaN(valor) || valor <= 0) return alert("Valor inválido.");
 
         try {
-            const res = await fetch(`/api/os/${id}/concluir`, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ valorFinal: valor })
-            });
-            
-            if(res.ok) {
-                alert(`✅ Serviço Concluído! R$ ${valor.toFixed(2)} lançado no Financeiro.`);
-                carregarOSHistory();
-            } else {
-                alert("Erro ao concluir OS.");
+            const res = await fetch(`/api/os/${id}/concluir`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ valorFinal: valor }) });
+            if(res.ok) { 
+                alert(`✅ OS Concluída! R$ ${valor.toFixed(2)} lançado no Caixa.\nSe havia peça vinculada, foi descontada do estoque.`); 
+                carregarOSHistory(); 
+                // Atualiza estoque se estivermos na aba de estoque ou form
+                carregarDropdownPecas();
             }
-        } catch(e) { alert("Erro de conexão: " + e.message); }
+        } catch(e) { alert("Erro."); }
+    };
+    
+    // FUNÇÃO WHATSAPP (OPÇÃO 1)
+    window.enviarZap = (telefone, modelo, status) => {
+        if(!telefone) return alert("Cliente sem telefone.");
+        // Limpa caracteres nao numericos
+        const num = telefone.replace(/\D/g, '');
+        let msg = "";
+        if(status === 'Concluido') {
+            msg = `Olá! Aqui é da Nexus Digital. Seu aparelho ${modelo} já está pronto e disponível para retirada! 🚀`;
+        } else {
+            msg = `Olá! Aqui é da Nexus Digital. Passando para informar sobre seu aparelho ${modelo}. Status atual: ${status}.`;
+        }
+        const url = `https://wa.me/55${num}?text=${encodeURIComponent(msg)}`;
+        window.open(url, '_blank');
     };
 
     window.carregarOSHistory = async () => {
@@ -137,171 +153,105 @@ document.addEventListener('DOMContentLoaded', () => {
             lista.forEach(os => {
                 const tr = document.createElement('tr');
                 const data = new Date(os.dataEntrada).toLocaleDateString('pt-BR');
+                let statusBadge = os.status === "Concluido" ? `<span style="color:#00ff88;font-weight:bold;">CONCLUÍDO</span>` : `<span style="color:#fff;">${os.status}</span>`;
                 
-                let statusBadge = "";
-                let btnConcluir = "";
-
-                if(os.status === "Concluido") {
-                    statusBadge = `<span style="color:#00ff88; font-weight:bold;">CONCLUÍDO</span>`;
-                } else {
-                    statusBadge = `<span style="color:#fff;">${os.status}</span>`;
-                    // Botão para concluir só aparece se não estiver concluído
-                    btnConcluir = `<button class="btn-icon btn-conclude" onclick="concluirOS('${os._id}')" title="Concluir e Cobrar"><i class="fas fa-check"></i></button>`;
+                let botoes = "";
+                // Botão Zap
+                botoes += `<button class="btn-icon btn-zap" onclick="enviarZap('${os.cliente.telefone}', '${os.aparelho.modelo}', '${os.status}')" title="WhatsApp"><i class="fab fa-whatsapp"></i></button>`;
+                
+                if(os.status !== "Concluido") {
+                    botoes += `<button class="btn-icon btn-conclude" onclick="concluirOS('${os._id}')" title="Concluir e Baixar Estoque"><i class="fas fa-check"></i></button>`;
                 }
+                botoes += `<button class="btn-icon btn-action" onclick="reimprimirOS('${os._id}')"><i class="fas fa-file-pdf"></i></button>`;
+                botoes += `<button class="btn-icon btn-danger" onclick="deletarOS('${os._id}')"><i class="fas fa-trash"></i></button>`;
 
                 tr.innerHTML = `
                     <td>#${os.numeroOS ? os.numeroOS.toString().slice(-4) : '---'}</td>
                     <td>${data}</td>
                     <td>${os.cliente.nome}</td>
                     <td>${statusBadge}</td>
-                    <td>
-                        ${btnConcluir}
-                        <button class="btn-icon btn-action" onclick="reimprimirOS('${os._id}')" title="Baixar PDF"><i class="fas fa-file-pdf"></i></button>
-                        <button class="btn-icon btn-danger" onclick="deletarOS('${os._id}')" title="Excluir"><i class="fas fa-trash"></i></button>
-                    </td>
+                    <td>${botoes}</td>
                 `;
                 tb.appendChild(tr);
             });
         } catch(e) { tb.innerHTML = ""; }
     };
 
-    window.reimprimirOS = async (id) => {
-        // Busca versão mais recente com anti-cache
-        const res = await fetch(`/api/os/${id}?t=${Date.now()}`);
-        const os = await res.json();
-        gerarPDFOS(os);
-    };
-
-    window.deletarOS = async (id) => {
-        if(confirm("Apagar esta OS?")) {
-            await fetch(`/api/os/${id}`, {method: 'DELETE'});
-            carregarOSHistory();
-        }
-    };
+    window.reimprimirOS = async (id) => { const res = await fetch(`/api/os/${id}?t=${Date.now()}`); gerarPDFOS(await res.json()); };
+    window.deletarOS = async (id) => { if(confirm("Apagar?")) { await fetch(`/api/os/${id}`, {method: 'DELETE'}); carregarOSHistory(); }};
 
     function limparFormularioOS() {
-        document.getElementById('os-nome').value = "";
-        document.getElementById('os-cpf').value = "";
-        document.getElementById('os-tel').value = "";
-        document.getElementById('os-modelo').value = "";
-        document.getElementById('os-imei').value = "";
-        document.getElementById('os-senha').value = "";
-        document.getElementById('os-acessorios').value = "";
-        document.getElementById('os-defeito').value = "";
-        document.getElementById('os-valor').value = "";
+        document.querySelectorAll('#tab-os input, #tab-os textarea').forEach(i => i.value = '');
+        document.getElementById('os-peca-estoque').value = ""; // Limpa seleção de peça
         osAtualID = null;
     }
 
-    // --- GERADOR PDF OS COM NOVOS CAMPOS ---
+    // PDF OS
     function gerarPDFOS(os) {
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF();
-        
         doc.setFont("helvetica", "bold"); doc.setFontSize(18);
         doc.text("ORDEM DE SERVIÇO", 105, 15, null, null, "center");
         doc.setFontSize(10); doc.setFont("helvetica", "normal");
         doc.text(`Nº: ${os.numeroOS || '---'} | Data: ${new Date(os.dataEntrada).toLocaleString('pt-BR')}`, 105, 22, null, null, "center");
         
         let y = 30;
-
-        // Cliente
-        doc.setFillColor(230,230,230); doc.rect(10, y, 190, 8, 'F');
-        doc.setFont("helvetica", "bold"); doc.text("DADOS DO CLIENTE", 15, y+6); y+=15;
-        doc.setFont("helvetica", "normal");
-        doc.text(`Nome: ${os.cliente.nome}`, 15, y);
-        doc.text(`Tel: ${os.cliente.telefone}`, 120, y); y+=7;
+        doc.setFillColor(230,230,230); doc.rect(10, y, 190, 8, 'F'); doc.setFont("helvetica", "bold"); doc.text("CLIENTE", 15, y+6); y+=15;
+        doc.setFont("helvetica", "normal"); doc.text(`Nome: ${os.cliente.nome} | Tel: ${os.cliente.telefone}`, 15, y); y+=7;
         doc.text(`CPF: ${os.cliente.cpf}`, 15, y); y+=10;
 
-        // Aparelho
-        doc.setFillColor(230,230,230); doc.rect(10, y, 190, 8, 'F');
-        doc.setFont("helvetica", "bold"); doc.text("APARELHO E SERVIÇO", 15, y+6); y+=15;
-        doc.setFont("helvetica", "normal");
-        doc.text(`Modelo: ${os.aparelho.modelo}`, 15, y);
-        doc.text(`IMEI: ${os.aparelho.imei}`, 100, y); y+=7;
-        doc.text(`Senha: ${os.aparelho.senha || 'Sem senha'}`, 15, y);
-        doc.text(`Acessórios: ${os.aparelho.acessorios || 'Nenhum'}`, 100, y); y+=10;
+        doc.setFillColor(230,230,230); doc.rect(10, y, 190, 8, 'F'); doc.setFont("helvetica", "bold"); doc.text("APARELHO E SERVIÇO", 15, y+6); y+=15;
+        doc.setFont("helvetica", "normal"); doc.text(`Modelo: ${os.aparelho.modelo} | IMEI: ${os.aparelho.imei}`, 15, y); y+=7;
+        doc.text(`Senha: ${os.aparelho.senha||'-'} | Acessórios: ${os.aparelho.acessorios||'-'}`, 15, y); y+=10;
         
-        // NOVO CAMPO: SERVIÇO
-        doc.setFont("helvetica", "bold"); doc.text("Serviço a Realizar:", 15, y); y+=7;
-        doc.setFont("helvetica", "normal"); doc.text(os.servico || "Não especificado", 15, y); y+=10;
+        doc.setFont("helvetica", "bold"); doc.text("Serviço:", 15, y); doc.setFont("helvetica", "normal"); doc.text(os.servico||'-', 35, y); y+=7;
+        doc.setFont("helvetica", "bold"); doc.text("Defeito:", 15, y); doc.setFont("helvetica", "normal"); doc.text(os.defeitoRelatado||'-', 35, y); y+=15;
 
-        doc.setFont("helvetica", "bold"); doc.text("Defeito Relatado:", 15, y); y+=7;
-        doc.setFont("helvetica", "normal");
-        doc.text(os.defeitoRelatado || "Não informado", 15, y, {maxWidth: 180}); y+=15;
+        // SE TIVER PEÇA VINCULADA, MOSTRAR NO PDF (OPCIONAL, MAS BOM PARA CONTROLE)
+        if(os.nomePecaVinculada) {
+             doc.setFont("helvetica", "bold"); doc.setFontSize(8);
+             doc.text(`Peça Utilizada: ${os.nomePecaVinculada}`, 15, y-3);
+             doc.setFontSize(10);
+        }
 
-        // === ÁREA DO VALOR DO ORÇAMENTO (EM DESTAQUE) ===
         if(os.valor) {
-            doc.setDrawColor(0); doc.setLineWidth(0.5); 
-            doc.rect(130, 45, 60, 20); // Caixa do valor
-            doc.setFont("helvetica", "bold"); doc.setFontSize(10);
-            doc.text("VALOR ORÇAMENTO", 160, 52, null, null, "center");
-            doc.setFontSize(14); 
-            doc.text(`R$ ${os.valor}`, 160, 60, null, null, "center");
+            doc.setDrawColor(0); doc.setLineWidth(0.5); doc.rect(130, 45, 60, 20);
+            doc.setFont("helvetica", "bold"); doc.text("ORÇAMENTO", 160, 52, null, null, "center");
+            doc.setFontSize(14); doc.text(`R$ ${os.valor}`, 160, 60, null, null, "center");
             doc.setFontSize(10); doc.setFont("helvetica", "normal");
         }
 
-        // Checklist
-        doc.setFillColor(230,230,230); doc.rect(10, y, 190, 8, 'F');
-        doc.setFont("helvetica", "bold"); doc.text("CHECKLIST DE ENTRADA", 15, y+6); y+=15;
-        
-        const ck = os.checklist;
-        doc.setFontSize(9);
-        const col1 = 15, col2 = 60, col3 = 105, col4 = 150;
-        
-        doc.text(`Tela: ${ck.tela}`, col1, y); doc.text(`Bateria: ${ck.bateria}`, col2, y); doc.text(`Carcaça: ${ck.carcaca}`, col3, y); doc.text(`Botões: ${ck.botoes}`, col4, y); y+=7;
-        doc.text(`Câmeras: ${ck.cameras}`, col1, y); doc.text(`Som: ${ck.som}`, col2, y); doc.text(`Wi-Fi: ${ck.conectividade}`, col3, y); doc.text(`Sensores: ${ck.sensores}`, col4, y); y+=15;
+        doc.setFillColor(230,230,230); doc.rect(10, y, 190, 8, 'F'); doc.setFont("helvetica", "bold"); doc.text("CHECKLIST", 15, y+6); y+=15;
+        const ck = os.checklist; doc.setFontSize(9);
+        doc.text(`Tela: ${ck.tela} | Bat: ${ck.bateria} | Carc: ${ck.carcaca}`, 15, y); y+=7;
+        doc.text(`Bot: ${ck.botoes} | Câm: ${ck.cameras} | Som: ${ck.som}`, 15, y); y+=7;
+        doc.text(`Rede: ${ck.conectividade} | Sens: ${ck.sensores}`, 15, y); y+=15;
 
-        // Termos
         doc.setFontSize(8); doc.setTextColor(100);
-        const termos = [
-            "1. A garantia cobre apenas o serviço executado e peças trocadas por 90 dias.",
-            "2. Não nos responsabilizamos por perda de dados. Faça backup.",
-            "3. Aparelhos não retirados em 90 dias serão vendidos para custear despesas."
-        ];
-        termos.forEach(t => { doc.text(t, 15, y); y+=5; });
+        ["1. Garantia de 90 dias.", "2. Não nos responsabilizamos por dados.", "3. Aparelhos não retirados em 90 dias serão vendidos."].forEach(t=>{doc.text(t,15,y);y+=5;});
 
-        // Assinatura
         y+=15; doc.setTextColor(0);
-        if(os.assinaturaCliente) {
-            doc.addImage(os.assinaturaCliente, 'PNG', 70, y, 60, 25);
-            y+=25;
-            doc.text("Assinatura do Cliente (Digital)", 105, y, null, null, "center");
-        } else {
-            y+=20;
-            doc.line(60, y, 150, y);
-            doc.text("Assinatura do Cliente", 105, y+5, null, null, "center");
-        }
-
+        if(os.assinaturaCliente) { doc.addImage(os.assinaturaCliente, 'PNG', 70, y, 60, 25); y+=25; doc.text("Assinatura Cliente", 105, y, null, null, "center"); }
+        else { y+=20; doc.line(60, y, 150, y); doc.text("Assinatura Cliente", 105, y+5, null, null, "center"); }
+        
         doc.save(`OS_${os.numeroOS}.pdf`);
     }
 
-
-    // ============================================
-    // === 2. MÓDULO RECIBO (COMPRA/VENDA + FINANCEIRO) ===
-    // ============================================
+    // --- RECIBOS ---
     const canvas = document.getElementById('signature-pad');
     if(canvas) {
-        const signaturePad = new SignaturePad(canvas, { backgroundColor: 'rgb(255, 255, 255)', penColor: 'rgb(0, 0, 0)' });
-        
-        function resizeCanvas() {
-            const ratio = Math.max(window.devicePixelRatio || 1, 1);
-            canvas.width = canvas.offsetWidth * ratio;
-            canvas.height = canvas.offsetHeight * ratio;
-            canvas.getContext("2d").scale(ratio, ratio);
-        }
-        window.addEventListener("resize", resizeCanvas);
-        resizeCanvas();
-        document.getElementById('clear-pad').addEventListener('click', () => signaturePad.clear());
-        
+        const signaturePad = new SignaturePad(canvas, { backgroundColor: '#fff', penColor: '#000' });
+        function resizeCanvas() { const r = Math.max(window.devicePixelRatio||1,1); canvas.width=canvas.offsetWidth*r; canvas.height=canvas.offsetHeight*r; canvas.getContext("2d").scale(r,r); }
+        window.addEventListener("resize", resizeCanvas); resizeCanvas();
+        document.getElementById('clear-pad').addEventListener('click', ()=>signaturePad.clear());
         loadHistory(); 
 
         window.gerarPDF = async () => {
              if (signaturePad.isEmpty()) { alert("Assinatura obrigatória!"); return; }
              const btn = document.querySelector('#tab-recibo .btn-generate');
              const txt = btn.innerHTML; btn.innerHTML = "Processando..."; btn.disabled = true;
-
              const dados = {
-                tipoOperacao: document.getElementById('tipo-recibo').value, // CAPTURA TIPO (COMPRA/VENDA)
+                tipoOperacao: document.getElementById('tipo-recibo').value,
                 nome: document.getElementById('nome').value || "---",
                 cpf: document.getElementById('cpf').value || "---",
                 rg: document.getElementById('rg').value || "---",
@@ -314,207 +264,115 @@ document.addEventListener('DOMContentLoaded', () => {
                 dataFormatada: new Date().toLocaleDateString('pt-BR'),
                 horaFormatada: new Date().toLocaleTimeString('pt-BR')
             };
-
             try {
                 const res = await fetch('/api/recibos', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(dados) });
                 const salvo = await res.json();
                 gerarQRCodeEPDF(salvo);
-                alert(`Recibo Salvo! Lançado como ${dados.tipoOperacao.toUpperCase()} no Financeiro.`);
-                signaturePad.clear();
-                loadHistory();
-            } catch (e) { alert("Erro: " + e.message); } 
-            finally { btn.innerHTML = txt; btn.disabled = false; }
+                alert("Recibo Salvo!"); signaturePad.clear(); loadHistory();
+            } catch (e) { alert("Erro: " + e.message); } finally { btn.innerHTML = txt; btn.disabled = false; }
         };
     }
-
-    window.reimprimirRecibo = async (id) => {
-        try {
-            const res = await fetch(`/api/recibos/${id}`);
-            if(!res.ok) throw new Error("Erro ao buscar");
-            const dados = await res.json();
-            gerarQRCodeEPDF(dados);
-        } catch(e) { alert("Erro ao reimprimir: " + e.message); }
-    };
-
-    function gerarQRCodeEPDF(dados) {
-        let container = document.getElementById("qrcode-container");
-        if(!container) {
-            container = document.createElement('div');
-            container.id = "qrcode-container";
-            container.style.display = "none";
-            document.body.appendChild(container);
-        }
-        container.innerHTML = "";
-        
-        const id = dados._id || Date.now();
-        // Inclui se é VENDA ou COMPRA no QR Code
-        const tipoLabel = dados.tipoOperacao === 'compra' ? 'COMPRA' : 'VENDA';
-        const qrData = `NEXUS|${tipoLabel}|ID:${id}|IMEI:${dados.imei}|$${dados.valor}`;
-        
-        new QRCode(container, { text: qrData, width: 100, height: 100 });
-        
-        setTimeout(() => {
-            const canvasQr = container.querySelector('canvas');
-            const imgQr = canvasQr ? canvasQr.toDataURL() : null;
-            criarArquivoPDF(dados, imgQr);
-        }, 100);
+    window.reimprimirRecibo = async (id) => { try { const res = await fetch(`/api/recibos/${id}`); gerarQRCodeEPDF(await res.json()); } catch(e) {} };
+    function gerarQRCodeEPDF(d) {
+        let c = document.getElementById("qrcode-container"); if(!c){c=document.createElement('div');c.id="qrcode-container";c.style.display="none";document.body.appendChild(c);}
+        c.innerHTML = "";
+        const lbl = d.tipoOperacao==='compra'?'COMPRA':'VENDA';
+        new QRCode(c, { text: `NEXUS|${lbl}|ID:${d._id}|$${d.valor}`, width: 100, height: 100 });
+        setTimeout(() => { const qr = c.querySelector('canvas'); criarArquivoPDF(d, qr?qr.toDataURL():null); }, 100);
     }
-
-    // === LAYOUT ORIGINAL NEXUS DIGITAL (PDF DE RECIBO) ===
     window.criarArquivoPDF = (d, qr) => {
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF();
         doc.setLineWidth(0.5); doc.setTextColor(0);
-        
-        // Cabeçalho Nexus Digital
-        doc.setFont("helvetica", "bold"); doc.setFontSize(22);
-        doc.text("NEXUS DIGITAL", 105, 20, null, null, "center");
-        doc.setFontSize(10); doc.setFont("helvetica", "normal");
-        doc.text("Destrava Cell | Soluções Mobile", 105, 26, null, null, "center");
+        doc.setFont("helvetica", "bold"); doc.setFontSize(22); doc.text("NEXUS DIGITAL", 105, 20, null, null, "center");
+        doc.setFontSize(10); doc.setFont("helvetica", "normal"); doc.text("Destrava Cell | Soluções Mobile", 105, 26, null, null, "center");
         doc.line(10, 30, 200, 30);
-
-        // Título Dinâmico
-        const titulo = d.tipoOperacao === 'compra' ? "RECIBO DE COMPRA (AQUISIÇÃO)" : "RECIBO DE VENDA";
-        doc.setFontSize(14); doc.setFont("helvetica", "bold");
-        doc.text(titulo, 105, 40, null, null, "center");
-        
+        const t = d.tipoOperacao==='compra'?"RECIBO DE COMPRA (AQUISIÇÃO)":"RECIBO DE VENDA";
+        doc.setFontSize(14); doc.setFont("helvetica", "bold"); doc.text(t, 105, 40, null, null, "center");
         if(qr) doc.addImage(qr, 'PNG', 170, 10, 30, 30);
-
         let y = 55;
-        const campos = [
-            { t: "DADOS DA TRANSAÇÃO", c: [`Data: ${d.dataFormatada}`, `Valor: R$ ${d.valor}`, `Tipo: ${d.tipoOperacao.toUpperCase()}`] },
-            { t: "PESSOA (CLIENTE/VENDEDOR)", c: [`Nome: ${d.nome}`, `CPF: ${d.cpf}`, `Endereço: ${d.endereco}`] },
-            { t: "APARELHO", c: [`Modelo: ${d.modelo}`, `IMEI: ${d.imei}`, `Estado: ${d.estado}`] }
-        ];
-
-        // GERA OS BLOCOS CINZAS (EFEITOS VISUAIS)
-        campos.forEach(bloco => {
-            doc.setFillColor(240,240,240); // Cor Cinza
-            doc.rect(15, y, 180, 8, 'F'); // Retângulo Preenchido
-            doc.setFont("helvetica", "bold"); doc.text(bloco.t, 20, y+6); y+=15;
-            doc.setFont("helvetica", "normal");
-            bloco.c.forEach(l => { doc.text(l, 20, y); y+=6; });
-            y+=5;
-        });
-
-        y+=10; 
-        doc.setFont("helvetica", "bold"); doc.setFontSize(9);
-        doc.text("TERMOS E RESPONSABILIDADE LEGAL:", 20, y); y+=6;
-        
-        doc.setFont("helvetica", "normal"); doc.setFontSize(8);
-        const termos = [
-            "1. As partes declaram que a transação é lícita e de boa fé.",
-            "2. O aparelho foi verificado e testado no ato da transação.",
-            "3. Em caso de bloqueio futuro (Blacklist/Roubo), o responsável legal será acionado.",
-            "4. A posse é transferida neste ato, em caráter irrevogável.",
-            // --- NOVA CLÁUSULA SOLICITADA ---
-            "5. NÃO nos responsabilizamos por débitos anteriores (PayJoy, Financeiras). O VENDEDOR assume total responsabilidade."
-        ];
-        termos.forEach(t => { doc.text(t, 20, y); y+=5; });
-        
-        y+=20;
-        if(d.assinatura) { 
-            doc.rect(60, y-5, 90, 30); 
-            doc.addImage(d.assinatura, 'PNG', 75, y, 60, 25); 
-        }
+        const campos = [{t:"DADOS",c:[`Data: ${d.dataFormatada}`, `Valor: R$ ${d.valor}`, `Tipo: ${d.tipoOperacao.toUpperCase()}`]},{t:"PESSOA",c:[`Nome: ${d.nome}`, `CPF: ${d.cpf}`, `End.: ${d.endereco}`]},{t:"APARELHO",c:[`Modelo: ${d.modelo}`, `IMEI: ${d.imei}`, `Estado: ${d.estado}`]}];
+        campos.forEach(b => { doc.setFillColor(240,240,240); doc.rect(15, y, 180, 8, 'F'); doc.setFont("helvetica", "bold"); doc.text(b.t, 20, y+6); y+=15; doc.setFont("helvetica", "normal"); b.c.forEach(l => { doc.text(l, 20, y); y+=6; }); y+=5; });
+        y+=10; doc.setFont("helvetica", "bold"); doc.setFontSize(9); doc.text("TERMOS:", 20, y); y+=6; doc.setFont("helvetica", "normal"); doc.setFontSize(8);
+        ["1. Transação lícita.", "2. Aparelho verificado.", "3. Bloqueios futuros (Blacklist/Roubo) responsabilidade do vendedor.", "4. Posse transferida.", "5. NÃO nos responsabilizamos por débitos anteriores (PayJoy)."].forEach(l=>{doc.text(l,20,y);y+=5;});
+        y+=20; if(d.assinatura) { doc.rect(60,y-5,90,30); doc.addImage(d.assinatura,'PNG',75,y,60,25); }
         y+=30; doc.text("ASSINATURA", 105, y, null, null, "center");
-        
         doc.save(`Recibo_${d.modelo}.pdf`);
     };
-
     async function loadHistory() {
-        const tb = document.querySelector('#history-table tbody');
-        if(!tb) return;
+        const tb = document.querySelector('#history-table tbody'); if(!tb) return;
         try {
-            const res = await fetch('/api/recibos');
-            const lista = await res.json();
-            tb.innerHTML = "";
-            lista.forEach(i => {
-                // DIFERENCIAÇÃO VISUAL NA TABELA
-                const tipoDisplay = i.tipoOperacao === 'compra' 
-                    ? '<span style="color:#ff4444; font-weight:bold;">COMPRA (SAÍDA)</span>' 
-                    : '<span style="color:#00ff88; font-weight:bold;">VENDA (ENTRADA)</span>';
-
-                tb.innerHTML += `
-                <tr>
-                    <td>${tipoDisplay}</td>
-                    <td>${i.nome}</td>
-                    <td>${i.modelo}</td>
-                    <td>R$ ${i.valor}</td>
-                    <td>
-                        <button class="btn-icon btn-action" onclick="reimprimirRecibo('${i._id}')" title="Baixar PDF"><i class="fas fa-file-pdf"></i></button>
-                        <button class="btn-icon btn-danger" onclick="deletar('${i._id}')" title="Excluir"><i class="fas fa-trash"></i></button>
-                    </td>
-                </tr>`;
+            const res = await fetch('/api/recibos'); const l = await res.json(); tb.innerHTML = "";
+            l.forEach(i => {
+                const cor = i.tipoOperacao === 'compra' ? '#ff4444' : '#00ff88';
+                tb.innerHTML += `<tr><td><span style="color:${cor};font-weight:bold;">${i.tipoOperacao.toUpperCase()}</span></td><td>${i.nome}</td><td>${i.modelo}</td><td>R$ ${i.valor}</td><td><button class="btn-icon btn-action" onclick="reimprimirRecibo('${i._id}')"><i class="fas fa-file-pdf"></i></button><button class="btn-icon btn-danger" onclick="deletar('${i._id}')"><i class="fas fa-trash"></i></button></td></tr>`;
             });
         } catch(e) {}
     }
     window.deletar = async (id) => { await fetch(`/api/recibos/${id}`, {method:'DELETE'}); loadHistory(); };
 
+    // --- ESTOQUE (OPÇÃO 4) ---
+    window.carregarEstoque = async () => {
+        const tb = document.querySelector('#estoque-table tbody');
+        if(!tb) return; // Se não estiver na aba certa
+        try {
+            const res = await fetch('/api/estoque');
+            const lista = await res.json();
+            tb.innerHTML = "";
+            lista.forEach(item => {
+                tb.innerHTML += `<tr>
+                    <td>${item.nome}</td>
+                    <td><span style="color:${item.quantidade<3?'#f44':'#fff'}">${item.quantidade}</span></td>
+                    <td>R$ ${item.valorCusto}</td>
+                    <td><button class="btn-icon btn-danger" onclick="deletarEstoque('${item._id}')"><i class="fas fa-trash"></i></button></td>
+                </tr>`;
+            });
+        } catch(e){}
+    };
+    window.salvarEstoque = async () => {
+        const nome = document.getElementById('est-nome').value;
+        const qtd = document.getElementById('est-qtd').value;
+        const custo = document.getElementById('est-custo').value;
+        if(!nome) return alert("Nome obrigatório");
+        await fetch('/api/estoque', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({nome, quantidade:qtd, valorCusto:custo})});
+        alert("Produto adicionado!");
+        document.getElementById('est-nome').value = ""; document.getElementById('est-qtd').value="";
+        carregarEstoque();
+    };
+    window.deletarEstoque = async(id) => { if(confirm("Apagar produto?")) { await fetch(`/api/estoque/${id}`, {method:'DELETE'}); carregarEstoque(); }};
 
-    // ============================================
-    // === 3. FINANCEIRO & PREÇOS ===
-    // ============================================
-    
+    // --- FINANCEIRO ---
     window.carregarFinanceiro = async () => {
         const tb = document.querySelector('#finance-table tbody');
         try {
-            const res = await fetch('/api/financeiro');
-            const lista = await res.json();
-            let total = 0, ent = 0, sai = 0;
-            tb.innerHTML = "";
-            lista.forEach(item => {
-                const val = parseFloat(item.valor);
-                if(item.tipo === 'entrada') { ent += val; total += val; } else { sai += val; total -= val; }
-                
-                tb.innerHTML += `<tr><td>${new Date(item.data).toLocaleDateString('pt-BR')}</td><td>${item.descricao}</td>
-                <td style="color:${item.tipo==='entrada'?'#0f8':'#f44'}">R$ ${val.toFixed(2)}</td>
-                <td><button class="btn-icon btn-danger" onclick="deletarFin('${item._id}')"><i class="fas fa-trash"></i></button></td></tr>`;
-            });
-            document.getElementById('dash-saldo').innerText = `R$ ${total.toFixed(2)}`;
-            document.getElementById('dash-entradas').innerText = `R$ ${ent.toFixed(2)}`;
-            document.getElementById('dash-saidas').innerText = `R$ ${sai.toFixed(2)}`;
+            const res = await fetch('/api/financeiro'); const l = await res.json();
+            let t=0,e=0,s=0; tb.innerHTML="";
+            l.forEach(i=>{ const v=parseFloat(i.valor); if(i.tipo==='entrada'){e+=v;t+=v;}else{s+=v;t-=v;} tb.innerHTML+=`<tr><td>${new Date(i.data).toLocaleDateString()}</td><td>${i.descricao}</td><td style="color:${i.tipo==='entrada'?'#0f8':'#f44'}">R$ ${v.toFixed(2)}</td><td><button class="btn-icon btn-danger" onclick="deletarFin('${i._id}')"><i class="fas fa-trash"></i></button></td></tr>`; });
+            document.getElementById('dash-saldo').innerText=`R$ ${t.toFixed(2)}`;
+            document.getElementById('dash-entradas').innerText=`R$ ${e.toFixed(2)}`;
+            document.getElementById('dash-saidas').innerText=`R$ ${s.toFixed(2)}`;
         } catch(e){}
     };
     window.salvarFinanceiro = async () => {
-        const desc = document.getElementById('fin-desc').value;
-        const valor = document.getElementById('fin-valor').value;
-        const tipo = document.getElementById('fin-tipo').value;
-        await fetch('/api/financeiro', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({descricao:desc, valor, tipo})});
+        const d=document.getElementById('fin-desc').value, v=document.getElementById('fin-valor').value, t=document.getElementById('fin-tipo').value;
+        await fetch('/api/financeiro',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({descricao:d,valor:v,tipo:t})});
         carregarFinanceiro();
-        document.getElementById('fin-desc').value = ""; document.getElementById('fin-valor').value = "";
+        document.getElementById('fin-desc').value=""; document.getElementById('fin-valor').value="";
     };
-    window.deletarFin = async(id) => { await fetch(`/api/financeiro/${id}`, {method:'DELETE'}); carregarFinanceiro(); };
+    window.deletarFin=async(id)=>{await fetch(`/api/financeiro/${id}`,{method:'DELETE'});carregarFinanceiro();};
 
-
-    // === TABELA DE PREÇOS (BUSCA) ===
-    
+    // --- PREÇOS ---
     // *** ATENÇÃO: COLE SUA LISTA DE PREÇOS COMPLETA AQUI ABAIXO ***
     const bancoPrecos = [
         { m: "Samsung", mod: "Galaxy A01 Core", serv: "100", blq: "50", ok: "150" },
         // ... COLE O RESTANTE DA SUA LISTA AQUI ...
     ];
-
-    const searchInput = document.getElementById('search-input');
-    const resultsContainer = document.getElementById('results-container');
-    if(searchInput) {
-        searchInput.addEventListener('input', (e) => {
-            const term = e.target.value.toLowerCase();
-            resultsContainer.innerHTML = '';
-            if(term.length < 2) return;
-            const filtrados = bancoPrecos.filter(p => p.mod.toLowerCase().includes(term));
-            filtrados.forEach(p => {
-                const card = document.createElement('div');
-                card.className = 'price-card';
-                card.innerHTML = `
-                    <div class="model-header"><span class="model-name">${p.mod}</span><span class="brand-badge">${p.m}</span></div>
-                    <div class="price-grid">
-                        <div class="price-box"><span class="price-label">Serviço</span><span class="price-value" style="color:#00ff88">R$ ${p.serv}</span></div>
-                        <div class="price-box"><span class="price-label">Compra (Bloq)</span><span class="price-value" style="color:#ffaa00">R$ ${p.blq}</span></div>
-                        <div class="price-box"><span class="price-label">Revenda (OK)</span><span class="price-value" style="color:#fff">R$ ${p.ok}</span></div>
-                    </div>
-                `;
-                resultsContainer.appendChild(card);
+    const inp = document.getElementById('search-input'); const resC = document.getElementById('results-container');
+    if(inp){
+        inp.addEventListener('input',(e)=>{
+            const t=e.target.value.toLowerCase(); resC.innerHTML=''; if(t.length<2)return;
+            bancoPrecos.filter(p=>p.mod.toLowerCase().includes(t)).forEach(p=>{
+                resC.innerHTML+=`<div class="price-card"><div class="model-header"><span class="model-name">${p.mod}</span><span class="brand-badge">${p.m}</span></div><div class="price-grid"><div class="price-box"><span class="price-label">Serviço</span><span class="price-value" style="color:#00ff88">R$ ${p.serv}</span></div><div class="price-box"><span class="price-label">Bloq</span><span class="price-value" style="color:#ffaa00">R$ ${p.blq}</span></div><div class="price-box"><span class="price-label">OK</span><span class="price-value" style="color:#fff">R$ ${p.ok}</span></div></div></div>`;
             });
         });
     }
