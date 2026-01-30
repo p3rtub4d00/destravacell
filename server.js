@@ -23,7 +23,7 @@ if (!mongoURI) {
         .catch(err => console.error('❌ Erro de Conexão MongoDB:', err));
 }
 
-app.use(express.json({ limit: '50mb' })); // Aumentado para suportar assinaturas grandes
+app.use(express.json({ limit: '50mb' }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -36,6 +36,7 @@ const UserSchema = new mongoose.Schema({
 const User = mongoose.model('User', UserSchema);
 
 const ReciboSchema = new mongoose.Schema({
+    tipoOperacao: { type: String, default: 'venda' }, // 'compra' ou 'venda'
     nome: String,
     cpf: String,
     rg: String,
@@ -44,7 +45,7 @@ const ReciboSchema = new mongoose.Schema({
     imei: String,
     valor: String,
     estado: String,
-    assinatura: String,
+    assinatura: String, // Base64
     dataCriacao: { type: Date, default: Date.now },
     dataFormatada: String,
     horaFormatada: String
@@ -56,11 +57,10 @@ const FinanceiroSchema = new mongoose.Schema({
     descricao: { type: String, required: true },
     valor: { type: Number, required: true },
     data: { type: Date, default: Date.now },
-    dataFormatada: String
+    origem: { type: String, default: 'manual' } // 'manual', 'recibo', 'os'
 });
 const Financeiro = mongoose.model('Financeiro', FinanceiroSchema);
 
-// --- NOVO MODELO: ORDEM DE SERVIÇO ---
 const OSSchema = new mongoose.Schema({
     cliente: {
         nome: String,
@@ -87,9 +87,10 @@ const OSSchema = new mongoose.Schema({
     },
     defeitoRelatado: String,
     status: { type: String, default: 'Aberto' }, // Aberto, Aguardando Peça, Concluido
+    valorFinal: { type: Number }, // Valor cobrado ao concluir
     assinaturaCliente: String, // Base64 da imagem
     dataEntrada: { type: Date, default: Date.now },
-    numeroOS: { type: Number } // ID numérico simples (timestamp)
+    numeroOS: { type: Number }
 });
 const OrdemServico = mongoose.model('OrdemServico', OSSchema);
 
@@ -101,7 +102,7 @@ async function criarAdminPadrao() {
         if (!adminExiste) {
             const hash = await bcrypt.hash('rafaelRAMOS28', 10);
             await User.create({ username: 'admin', password: hash });
-            console.log('🔐 Usuário ADMIN criado: admin / rafaelRAMOS28');
+            console.log('🔐 Usuário ADMIN criado.');
         }
     } catch (e) { console.error("Erro ao criar admin:", e); }
 }
@@ -136,7 +137,7 @@ app.post('/api/logout', (req, res) => {
 
 app.get('/api/check-auth', authMiddleware, (req, res) => res.sendStatus(200));
 
-// Recibos
+// --- RECIBOS (INTEGRADO COM FINANCEIRO) ---
 app.get('/api/recibos', authMiddleware, async (req, res) => {
     const recibos = await Recibo.find().sort({ dataCriacao: -1 });
     res.json(recibos);
@@ -145,15 +146,41 @@ app.get('/api/recibos/:id', authMiddleware, async (req, res) => {
     res.json(await Recibo.findById(req.params.id));
 });
 app.post('/api/recibos', authMiddleware, async (req, res) => {
-    const novo = await Recibo.create(req.body);
-    res.json(novo);
+    try {
+        const dados = req.body;
+        const novoRecibo = await Recibo.create(dados);
+
+        // LÓGICA FINANCEIRA AUTOMÁTICA
+        // Se tem valor, lança no financeiro
+        if (dados.valor) {
+            const valorNumerico = parseFloat(dados.valor.replace(',', '.'));
+            
+            if (!isNaN(valorNumerico) && valorNumerico > 0) {
+                // Se for COMPRA, é SAÍDA. Se for VENDA, é ENTRADA.
+                let tipoFin = 'entrada';
+                if (dados.tipoOperacao === 'compra') {
+                    tipoFin = 'saida';
+                }
+
+                await Financeiro.create({
+                    tipo: tipoFin,
+                    descricao: `Recibo #${novoRecibo._id.toString().slice(-4)} - ${dados.tipoOperacao.toUpperCase()} - ${dados.modelo}`,
+                    valor: valorNumerico,
+                    origem: 'recibo'
+                });
+            }
+        }
+        res.json(novoRecibo);
+    } catch (e) {
+        res.status(500).json({ erro: e.message });
+    }
 });
 app.delete('/api/recibos/:id', authMiddleware, async (req, res) => {
     await Recibo.findByIdAndDelete(req.params.id);
     res.json({ ok: true });
 });
 
-// Financeiro
+// --- FINANCEIRO ---
 app.get('/api/financeiro', authMiddleware, async (req, res) => {
     const fin = await Financeiro.find().sort({ data: -1 });
     res.json(fin);
@@ -167,13 +194,13 @@ app.delete('/api/financeiro/:id', authMiddleware, async (req, res) => {
     res.json({ ok: true });
 });
 
-// --- ROTAS ORDEM DE SERVIÇO (NOVAS) ---
+// --- ORDEM DE SERVIÇO (NOVAS ROTAS) ---
 
 // Criar OS
 app.post('/api/os', authMiddleware, async (req, res) => {
     try {
         const dados = req.body;
-        dados.numeroOS = Date.now(); // ID simples para QR Code
+        dados.numeroOS = Date.now(); // ID único simples
         const novaOS = await OrdemServico.create(dados);
         res.json(novaOS);
     } catch (e) {
@@ -187,7 +214,7 @@ app.get('/api/os', authMiddleware, async (req, res) => {
     res.json(lista);
 });
 
-// Buscar OS Individual (Pública para assinatura via QR Code)
+// Buscar OS Individual (para PDF e Assinatura)
 app.get('/api/os/:id', async (req, res) => {
     try {
         const os = await OrdemServico.findById(req.params.id);
@@ -196,13 +223,38 @@ app.get('/api/os/:id', async (req, res) => {
     } catch (e) { res.status(500).json({ erro: "Erro interno" }); }
 });
 
-// Salvar Assinatura (Pública para o celular enviar)
+// Salvar Assinatura do Cliente
 app.put('/api/os/:id/assinar', async (req, res) => {
     try {
         const { assinatura } = req.body;
         await OrdemServico.findByIdAndUpdate(req.params.id, { assinaturaCliente: assinatura });
         res.json({ ok: true });
     } catch (e) { res.status(500).json({ erro: "Erro ao salvar assinatura" }); }
+});
+
+// CONCLUIR OS E LANÇAR NO CAIXA
+app.post('/api/os/:id/concluir', authMiddleware, async (req, res) => {
+    try {
+        const { valorFinal } = req.body;
+        
+        // Atualiza status e valor na OS
+        const os = await OrdemServico.findByIdAndUpdate(req.params.id, { 
+            status: 'Concluido', 
+            valorFinal: valorFinal 
+        }, { new: true });
+
+        // Lança entrada no Financeiro
+        if (valorFinal && valorFinal > 0) {
+            await Financeiro.create({
+                tipo: 'entrada',
+                descricao: `Serviço OS #${os.numeroOS.toString().slice(-4)} - ${os.aparelho.modelo}`,
+                valor: parseFloat(valorFinal),
+                origem: 'os'
+            });
+        }
+        
+        res.json(os);
+    } catch (e) { res.status(500).json({ erro: "Erro ao concluir OS" }); }
 });
 
 // Deletar OS
