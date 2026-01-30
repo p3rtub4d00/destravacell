@@ -47,18 +47,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 senha: document.getElementById('os-senha').value,
                 acessorios: document.getElementById('os-acessorios').value
             },
+            // CHECKLIST EXPANDIDO
             checklist: {
                 tela: document.getElementById('ck-tela').value,
                 bateria: document.getElementById('ck-bateria').value,
-                carcaca: document.getElementById('ck-carcaca').value,
-                botoes: document.getElementById('ck-botoes').value,
+                conector: document.getElementById('ck-conector').value,
                 cameras: document.getElementById('ck-cameras').value,
+                biometria: document.getElementById('ck-biometria').value,
                 som: document.getElementById('ck-som').value,
-                conectividade: document.getElementById('ck-rede').value,
-                sensores: document.getElementById('ck-sensores').value
+                microfone: document.getElementById('ck-microfone').value,
+                botoes: document.getElementById('ck-botoes').value,
+                rede: document.getElementById('ck-rede').value,
+                carcaca: document.getElementById('ck-carcaca').value,
+                sensores: document.getElementById('ck-sensores').value,
+                outros: document.getElementById('ck-outros').value
             },
             servico: document.getElementById('os-servico').value,
-            estadoGeral: document.getElementById('os-estado').value, // CAPTURA O ESTADO GERAL
+            estadoGeral: document.getElementById('os-estado').value,
             defeitoRelatado: document.getElementById('os-defeito').value,
             valor: document.getElementById('os-valor').value,
             idPecaVinculada: idPeca,
@@ -218,7 +223,6 @@ document.addEventListener('DOMContentLoaded', () => {
             doc.text(`Modelo: ${os.aparelho.modelo}`, 15, y); 
             doc.text(`IMEI: ${os.aparelho.imei}`, 100, y); y+=7;
             
-            // ESTADO GERAL AGORA APARECE NO PDF
             doc.text(`Estado Geral: ${os.estadoGeral || '-'}`, 15, y); 
             doc.text(`Senha: ${os.aparelho.senha||'-'}`, 100, y); y+=7;
             
@@ -231,21 +235,27 @@ document.addEventListener('DOMContentLoaded', () => {
                  doc.setFont("helvetica", "bold"); doc.setFontSize(8); doc.text(`Peça: ${os.nomePecaVinculada}`, 15, y-3); doc.setFontSize(10);
             }
 
-            // CHECKLIST
-            doc.setFillColor(230,230,230); doc.rect(10, y, 190, 8, 'F'); doc.setFont("helvetica", "bold"); doc.text("CHECKLIST", 15, y+6); y+=15;
-            const ck = os.checklist; doc.setFontSize(9);
-            doc.text(`Tela: ${ck.tela} | Bat: ${ck.bateria} | Carc: ${ck.carcaca}`, 15, y); y+=7;
-            doc.text(`Bot: ${ck.botoes} | Câm: ${ck.cameras} | Som: ${ck.som}`, 15, y); y+=7;
-            doc.text(`Rede: ${ck.conectividade} | Sens: ${ck.sensores}`, 15, y); y+=15;
+            // CHECKLIST COMPLETO
+            doc.setFillColor(230,230,230); doc.rect(10, y, 190, 8, 'F'); doc.setFont("helvetica", "bold"); doc.text("CHECKLIST DE ENTRADA", 15, y+6); y+=15;
+            const ck = os.checklist; doc.setFontSize(8);
+            
+            // Linha 1
+            doc.text(`Tela: ${ck.tela}`, 15, y); doc.text(`Bat: ${ck.bateria}`, 60, y); doc.text(`Conector: ${ck.conector}`, 105, y); doc.text(`Câm: ${ck.cameras}`, 150, y); y+=6;
+            // Linha 2
+            doc.text(`Bio/Face: ${ck.biometria}`, 15, y); doc.text(`Som: ${ck.som}`, 60, y); doc.text(`Mic: ${ck.microfone}`, 105, y); doc.text(`Botões: ${ck.botoes}`, 150, y); y+=6;
+            // Linha 3
+            doc.text(`Rede: ${ck.rede}`, 15, y); doc.text(`Carc: ${ck.carcaca}`, 60, y); doc.text(`Sens: ${ck.sensores}`, 105, y); doc.text(`Outros: ${ck.outros}`, 150, y); y+=10;
 
-            // AREA DE TOTAIS E ORÇAMENTO (Posicionada no fim, à direita)
+            doc.setFontSize(10); // Volta ao tamanho normal
+
+            // AREA DE TOTAIS E VALOR DO SERVIÇO
             if(os.valor) {
                 // Desenha uma linha separadora antes
                 doc.line(10, y, 200, y); y+=10;
                 
-                // Caixa alinhada a direita
+                // MUDANÇA DE TEXTO: DE "ORÇAMENTO" PARA "VALOR DO SERVIÇO"
                 doc.setFontSize(12); doc.setFont("helvetica", "bold");
-                doc.text("TOTAL ORÇAMENTO:", 120, y);
+                doc.text("VALOR DO SERVIÇO:", 120, y);
                 doc.setFontSize(16);
                 doc.text(`R$ ${os.valor}`, 190, y, null, null, "right");
                 y+=10;
