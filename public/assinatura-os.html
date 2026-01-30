@@ -2,41 +2,71 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
     <title>Assinar OS</title>
     <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.0.0/dist/signature_pad.umd.min.js"></script>
     <style>
-        body { background: #121212; color: #fff; display: flex; flex-direction: column; align-items: center; padding: 20px; font-family: sans-serif; }
-        canvas { background: #fff; border-radius: 5px; width: 100%; height: 300px; }
-        button { width: 100%; padding: 15px; margin-top: 20px; background: #00ff88; border: none; font-weight: bold; font-size: 1.2rem; border-radius: 5px; }
+        body { background: #121212; color: #fff; display: flex; flex-direction: column; align-items: center; padding: 20px; font-family: sans-serif; height: 100vh; justify-content: center; margin: 0; }
+        h3 { margin-bottom: 20px; text-align: center; }
+        canvas { background: #fff; border-radius: 10px; width: 100%; height: 300px; touch-action: none; }
+        button { width: 100%; padding: 15px; margin-top: 20px; border: none; font-weight: bold; font-size: 1.2rem; border-radius: 50px; cursor: pointer; }
+        .btn-save { background: #00ff88; color: #000; }
+        .btn-clear { background: #333; color: #fff; margin-top: 10px; }
     </style>
 </head>
 <body>
-    <h3>Assine Abaixo</h3>
-    <canvas id="pad"></canvas>
-    <button onclick="salvar()">ENVIAR ASSINATURA</button>
+    <h3>Assinatura do Cliente<br><small style="color:#888; font-size:0.8rem;">Use o dedo para assinar abaixo</small></h3>
     
+    <canvas id="pad"></canvas>
+    
+    <button class="btn-save" onclick="salvar()">ENVIAR ASSINATURA</button>
+    <button class="btn-clear" onclick="limpar()">LIMPAR / CORRIGIR</button>
+
     <script>
         const canvas = document.getElementById('pad');
-        const pad = new SignaturePad(canvas);
-        const id = new URLSearchParams(window.location.search).get('id');
+        const pad = new SignaturePad(canvas, { backgroundColor: '#ffffff', penColor: '#000000' });
         
+        // Pega o ID da URL (?id=...)
+        const params = new URLSearchParams(window.location.search);
+        const id = params.get('id');
+
         function resize() {
-            canvas.width = canvas.parentElement.offsetWidth;
-            canvas.height = 300;
-            pad.clear();
+            const ratio = Math.max(window.devicePixelRatio || 1, 1);
+            canvas.width = canvas.offsetWidth * ratio;
+            canvas.height = canvas.offsetHeight * ratio;
+            canvas.getContext("2d").scale(ratio, ratio);
         }
         window.addEventListener('resize', resize);
         resize();
 
+        function limpar() { pad.clear(); }
+
         async function salvar() {
-            if(pad.isEmpty()) return alert("Assine primeiro!");
-            await fetch(`/api/os/${id}`, {
-                method: 'PUT',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ assinaturaCliente: pad.toDataURL() })
-            });
-            document.body.innerHTML = "<h1>✅ Enviado! Pode fechar.</h1>";
+            if(pad.isEmpty()) return alert("Por favor, assine antes de enviar.");
+            if(!id) return alert("Erro: ID da OS não encontrado.");
+
+            const btn = document.querySelector('.btn-save');
+            btn.innerHTML = "Enviando..."; btn.disabled = true;
+
+            try {
+                // Rota ajustada para a nova lógica da OS
+                await fetch(`/api/os/${id}/assinar`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ assinatura: pad.toDataURL() })
+                });
+                
+                document.body.innerHTML = `
+                    <div style="text-align:center;">
+                        <h1 style="color:#00ff88; font-size:4rem;">✅</h1>
+                        <h2>Assinatura Recebida!</h2>
+                        <p>O atendente já recebeu sua confirmação.</p>
+                    </div>
+                `;
+            } catch (e) {
+                alert("Erro ao enviar: " + e.message);
+                btn.innerHTML = "TENTAR NOVAMENTE"; btn.disabled = false;
+            }
         }
     </script>
 </body>
