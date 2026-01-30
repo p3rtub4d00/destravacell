@@ -9,7 +9,7 @@ const jwt = require('jsonwebtoken');
 const app = express();
 const port = process.env.PORT || 3000;
 const mongoURI = process.env.MONGO_URI;
-const JWT_SECRET = process.env.JWT_SECRET || 'segredo_nexus_digital_2025_safe_key';
+const JWT_SECRET = process.env.JWT_SECRET || 'segredo_destrava_cell_2026_key';
 
 // --- CONEXÃO MONGODB ---
 if (!mongoURI) {
@@ -23,7 +23,6 @@ if (!mongoURI) {
         .catch(err => console.error('❌ Erro de Conexão MongoDB:', err));
 }
 
-// Aumentando limite para suportar imagens base64
 app.use(express.json({ limit: '50mb' }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
@@ -36,7 +35,6 @@ const UserSchema = new mongoose.Schema({
 });
 const User = mongoose.model('User', UserSchema);
 
-// Schema de Estoque
 const EstoqueSchema = new mongoose.Schema({
     nome: { type: String, required: true },
     quantidade: { type: Number, default: 0 },
@@ -88,13 +86,13 @@ const OSSchema = new mongoose.Schema({
         cameras: String, som: String, conectividade: String, sensores: String
     },
     servico: String,
+    estadoGeral: String, // <--- NOVO: Opções detalhadas (iCloud, etc) na OS
     defeitoRelatado: String,
     valor: String, 
     status: { type: String, default: 'Aberto' }, 
     valorFinal: { type: Number },
     assinaturaCliente: String,
     
-    // Vínculo com Estoque
     idPecaVinculada: String, 
     nomePecaVinculada: String,
 
@@ -127,7 +125,6 @@ const authMiddleware = (req, res, next) => {
 
 // --- ROTAS ---
 
-// Auth
 app.post('/api/login', async (req, res) => {
     const { username, password } = req.body;
     const user = await User.findOne({ username });
@@ -146,7 +143,7 @@ app.post('/api/logout', (req, res) => {
 
 app.get('/api/check-auth', authMiddleware, (req, res) => res.sendStatus(200));
 
-// --- ROTA PÚBLICA DE RASTREIO ---
+// RASTREIO PÚBLICO
 app.get('/api/public/os/rastreio', async (req, res) => {
     try {
         const { busca } = req.query; 
@@ -160,7 +157,6 @@ app.get('/api/public/os/rastreio', async (req, res) => {
         }
 
         const osFound = await OrdemServico.findOne(query);
-
         if (!osFound) return res.status(404).json({ erro: "OS não encontrada." });
 
         res.json({
@@ -171,12 +167,10 @@ app.get('/api/public/os/rastreio', async (req, res) => {
             defeito: osFound.defeitoRelatado,
             valor: osFound.valor 
         });
-
     } catch (e) { res.status(500).json({ erro: "Erro ao buscar OS" }); }
 });
 
-
-// --- RECIBOS ---
+// RECIBOS
 app.get('/api/recibos', authMiddleware, async (req, res) => {
     const recibos = await Recibo.find().sort({ dataCriacao: -1 });
     res.json(recibos);
@@ -208,7 +202,7 @@ app.delete('/api/recibos/:id', authMiddleware, async (req, res) => {
     res.json({ ok: true });
 });
 
-// --- FINANCEIRO ---
+// FINANCEIRO
 app.get('/api/financeiro', authMiddleware, async (req, res) => {
     res.json(await Financeiro.find().sort({ data: -1 }));
 });
@@ -220,7 +214,7 @@ app.delete('/api/financeiro/:id', authMiddleware, async (req, res) => {
     res.json({ ok: true });
 });
 
-// --- ESTOQUE ---
+// ESTOQUE
 app.get('/api/estoque', authMiddleware, async (req, res) => {
     res.json(await Estoque.find().sort({ nome: 1 }));
 });
@@ -235,7 +229,7 @@ app.delete('/api/estoque/:id', authMiddleware, async (req, res) => {
     res.json({ ok: true });
 });
 
-// --- ORDEM DE SERVIÇO ---
+// ORDEM DE SERVIÇO
 app.post('/api/os', authMiddleware, async (req, res) => {
     try {
         const dados = req.body;
