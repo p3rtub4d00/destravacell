@@ -8,14 +8,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let osAtualID = null;
 
-    // Função para carregar peças no dropdown da OS
     window.carregarDropdownPecas = async () => {
         const select = document.getElementById('os-peca-estoque');
         if(!select) return;
         try {
             const res = await fetch('/api/estoque');
             const lista = await res.json();
-            // Mantém a primeira opção padrão
             select.innerHTML = '<option value="">-- Nenhuma / Apenas Serviço --</option>';
             lista.forEach(p => {
                 if(p.quantidade > 0) {
@@ -33,7 +31,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const originalText = btn.innerHTML;
         btn.innerText = "Criando..."; btn.disabled = true;
 
-        // Pega o elemento do select para obter o texto (nome da peça)
         const selectPeca = document.getElementById('os-peca-estoque');
         const idPeca = selectPeca.value;
         const nomePeca = idPeca ? selectPeca.options[selectPeca.selectedIndex].text : null;
@@ -63,8 +60,6 @@ document.addEventListener('DOMContentLoaded', () => {
             servico: document.getElementById('os-servico').value,
             defeitoRelatado: document.getElementById('os-defeito').value,
             valor: document.getElementById('os-valor').value,
-            
-            // VINCULO COM ESTOQUE
             idPecaVinculada: idPeca,
             nomePecaVinculada: nomePeca
         };
@@ -105,7 +100,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if(os.assinaturaCliente) {
                 alert("✅ Assinatura CONFIRMADA! Gerando PDF...");
                 document.getElementById('area-assinatura-os').style.display = 'none';
+                
+                // GERA O PDF E O QR CODE DE RASTREIO
                 gerarPDFOS(os);
+                
                 limparFormularioOS();
             } else { alert("❌ O cliente ainda não enviou a assinatura."); }
         } catch(e) { alert("Erro."); }
@@ -120,27 +118,20 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const res = await fetch(`/api/os/${id}/concluir`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ valorFinal: valor }) });
             if(res.ok) { 
-                alert(`✅ OS Concluída! R$ ${valor.toFixed(2)} lançado no Caixa.\nSe havia peça vinculada, foi descontada do estoque.`); 
+                alert(`✅ OS Concluída! R$ ${valor.toFixed(2)} lançado no Caixa.`); 
                 carregarOSHistory(); 
-                // Atualiza estoque se estivermos na aba de estoque ou form
                 carregarDropdownPecas();
             }
         } catch(e) { alert("Erro."); }
     };
     
-    // FUNÇÃO WHATSAPP (OPÇÃO 1)
     window.enviarZap = (telefone, modelo, status) => {
         if(!telefone) return alert("Cliente sem telefone.");
-        // Limpa caracteres nao numericos
         const num = telefone.replace(/\D/g, '');
-        let msg = "";
-        if(status === 'Concluido') {
-            msg = `Olá! Aqui é da Nexus Digital. Seu aparelho ${modelo} já está pronto e disponível para retirada! 🚀`;
-        } else {
-            msg = `Olá! Aqui é da Nexus Digital. Passando para informar sobre seu aparelho ${modelo}. Status atual: ${status}.`;
-        }
-        const url = `https://wa.me/55${num}?text=${encodeURIComponent(msg)}`;
-        window.open(url, '_blank');
+        let msg = status === 'Concluido' 
+            ? `Olá! Aqui é da Nexus Digital. Seu aparelho ${modelo} já está pronto e disponível para retirada! 🚀`
+            : `Olá! Aqui é da Nexus Digital. Passando para informar sobre seu aparelho ${modelo}. Status atual: ${status}.`;
+        window.open(`https://wa.me/55${num}?text=${encodeURIComponent(msg)}`, '_blank');
     };
 
     window.carregarOSHistory = async () => {
@@ -155,23 +146,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 const data = new Date(os.dataEntrada).toLocaleDateString('pt-BR');
                 let statusBadge = os.status === "Concluido" ? `<span style="color:#00ff88;font-weight:bold;">CONCLUÍDO</span>` : `<span style="color:#fff;">${os.status}</span>`;
                 
-                let botoes = "";
-                // Botão Zap
-                botoes += `<button class="btn-icon btn-zap" onclick="enviarZap('${os.cliente.telefone}', '${os.aparelho.modelo}', '${os.status}')" title="WhatsApp"><i class="fab fa-whatsapp"></i></button>`;
-                
-                if(os.status !== "Concluido") {
-                    botoes += `<button class="btn-icon btn-conclude" onclick="concluirOS('${os._id}')" title="Concluir e Baixar Estoque"><i class="fas fa-check"></i></button>`;
-                }
+                let botoes = `<button class="btn-icon btn-zap" onclick="enviarZap('${os.cliente.telefone}', '${os.aparelho.modelo}', '${os.status}')"><i class="fab fa-whatsapp"></i></button>`;
+                if(os.status !== "Concluido") botoes += `<button class="btn-icon btn-conclude" onclick="concluirOS('${os._id}')"><i class="fas fa-check"></i></button>`;
                 botoes += `<button class="btn-icon btn-action" onclick="reimprimirOS('${os._id}')"><i class="fas fa-file-pdf"></i></button>`;
                 botoes += `<button class="btn-icon btn-danger" onclick="deletarOS('${os._id}')"><i class="fas fa-trash"></i></button>`;
 
-                tr.innerHTML = `
-                    <td>#${os.numeroOS ? os.numeroOS.toString().slice(-4) : '---'}</td>
-                    <td>${data}</td>
-                    <td>${os.cliente.nome}</td>
-                    <td>${statusBadge}</td>
-                    <td>${botoes}</td>
-                `;
+                tr.innerHTML = `<td>#${os.numeroOS ? os.numeroOS.toString().slice(-4) : '---'}</td><td>${data}</td><td>${os.cliente.nome}</td><td>${statusBadge}</td><td>${botoes}</td>`;
                 tb.appendChild(tr);
             });
         } catch(e) { tb.innerHTML = ""; }
@@ -182,59 +162,89 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function limparFormularioOS() {
         document.querySelectorAll('#tab-os input, #tab-os textarea').forEach(i => i.value = '');
-        document.getElementById('os-peca-estoque').value = ""; // Limpa seleção de peça
+        document.getElementById('os-peca-estoque').value = "";
         osAtualID = null;
     }
 
-    // PDF OS
+    // PDF OS - COM QR CODE DE RASTREIO
     function gerarPDFOS(os) {
-        const { jsPDF } = window.jspdf;
-        const doc = new jsPDF();
-        doc.setFont("helvetica", "bold"); doc.setFontSize(18);
-        doc.text("ORDEM DE SERVIÇO", 105, 15, null, null, "center");
-        doc.setFontSize(10); doc.setFont("helvetica", "normal");
-        doc.text(`Nº: ${os.numeroOS || '---'} | Data: ${new Date(os.dataEntrada).toLocaleString('pt-BR')}`, 105, 22, null, null, "center");
-        
-        let y = 30;
-        doc.setFillColor(230,230,230); doc.rect(10, y, 190, 8, 'F'); doc.setFont("helvetica", "bold"); doc.text("CLIENTE", 15, y+6); y+=15;
-        doc.setFont("helvetica", "normal"); doc.text(`Nome: ${os.cliente.nome} | Tel: ${os.cliente.telefone}`, 15, y); y+=7;
-        doc.text(`CPF: ${os.cliente.cpf}`, 15, y); y+=10;
-
-        doc.setFillColor(230,230,230); doc.rect(10, y, 190, 8, 'F'); doc.setFont("helvetica", "bold"); doc.text("APARELHO E SERVIÇO", 15, y+6); y+=15;
-        doc.setFont("helvetica", "normal"); doc.text(`Modelo: ${os.aparelho.modelo} | IMEI: ${os.aparelho.imei}`, 15, y); y+=7;
-        doc.text(`Senha: ${os.aparelho.senha||'-'} | Acessórios: ${os.aparelho.acessorios||'-'}`, 15, y); y+=10;
-        
-        doc.setFont("helvetica", "bold"); doc.text("Serviço:", 15, y); doc.setFont("helvetica", "normal"); doc.text(os.servico||'-', 35, y); y+=7;
-        doc.setFont("helvetica", "bold"); doc.text("Defeito:", 15, y); doc.setFont("helvetica", "normal"); doc.text(os.defeitoRelatado||'-', 35, y); y+=15;
-
-        // SE TIVER PEÇA VINCULADA, MOSTRAR NO PDF (OPCIONAL, MAS BOM PARA CONTROLE)
-        if(os.nomePecaVinculada) {
-             doc.setFont("helvetica", "bold"); doc.setFontSize(8);
-             doc.text(`Peça Utilizada: ${os.nomePecaVinculada}`, 15, y-3);
-             doc.setFontSize(10);
+        // Gera o QR Code de Rastreio em um elemento oculto
+        let qrContainer = document.getElementById('temp-qr-rastreio');
+        if(!qrContainer) {
+            qrContainer = document.createElement('div');
+            qrContainer.id = 'temp-qr-rastreio';
+            qrContainer.style.display = 'none'; // Oculto
+            document.body.appendChild(qrContainer);
         }
+        qrContainer.innerHTML = "";
+        
+        // Link para a página de status
+        const linkStatus = `${window.location.origin}/status.html`;
+        new QRCode(qrContainer, { text: linkStatus, width: 100, height: 100 });
 
-        if(os.valor) {
-            doc.setDrawColor(0); doc.setLineWidth(0.5); doc.rect(130, 45, 60, 20);
-            doc.setFont("helvetica", "bold"); doc.text("ORÇAMENTO", 160, 52, null, null, "center");
-            doc.setFontSize(14); doc.text(`R$ ${os.valor}`, 160, 60, null, null, "center");
+        // Aguarda um momento para o QR ser gerado antes de criar o PDF
+        setTimeout(() => {
+            const canvasQr = qrContainer.querySelector('canvas');
+            const imgQrRastreio = canvasQr ? canvasQr.toDataURL() : null;
+
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            
+            // Layout Principal
+            doc.setFont("helvetica", "bold"); doc.setFontSize(18);
+            doc.text("ORDEM DE SERVIÇO", 105, 15, null, null, "center");
             doc.setFontSize(10); doc.setFont("helvetica", "normal");
-        }
+            doc.text(`Nº: ${os.numeroOS || '---'} | Data: ${new Date(os.dataEntrada).toLocaleString('pt-BR')}`, 105, 22, null, null, "center");
+            
+            // INSERIR QR CODE DE RASTREIO NO CANTO DIREITO
+            if(imgQrRastreio) {
+                doc.addImage(imgQrRastreio, 'PNG', 170, 10, 25, 25);
+                doc.setFontSize(7);
+                doc.text("ACOMPANHE O STATUS", 182, 38, null, null, "center");
+                doc.setFontSize(10);
+            }
 
-        doc.setFillColor(230,230,230); doc.rect(10, y, 190, 8, 'F'); doc.setFont("helvetica", "bold"); doc.text("CHECKLIST", 15, y+6); y+=15;
-        const ck = os.checklist; doc.setFontSize(9);
-        doc.text(`Tela: ${ck.tela} | Bat: ${ck.bateria} | Carc: ${ck.carcaca}`, 15, y); y+=7;
-        doc.text(`Bot: ${ck.botoes} | Câm: ${ck.cameras} | Som: ${ck.som}`, 15, y); y+=7;
-        doc.text(`Rede: ${ck.conectividade} | Sens: ${ck.sensores}`, 15, y); y+=15;
+            let y = 45; // Baixei um pouco para caber o QR
 
-        doc.setFontSize(8); doc.setTextColor(100);
-        ["1. Garantia de 90 dias.", "2. Não nos responsabilizamos por dados.", "3. Aparelhos não retirados em 90 dias serão vendidos."].forEach(t=>{doc.text(t,15,y);y+=5;});
+            // Cliente
+            doc.setFillColor(230,230,230); doc.rect(10, y, 190, 8, 'F'); doc.setFont("helvetica", "bold"); doc.text("DADOS DO CLIENTE", 15, y+6); y+=15;
+            doc.setFont("helvetica", "normal"); doc.text(`Nome: ${os.cliente.nome}`, 15, y); doc.text(`Tel: ${os.cliente.telefone}`, 120, y); y+=7;
+            doc.text(`CPF: ${os.cliente.cpf}`, 15, y); y+=10;
 
-        y+=15; doc.setTextColor(0);
-        if(os.assinaturaCliente) { doc.addImage(os.assinaturaCliente, 'PNG', 70, y, 60, 25); y+=25; doc.text("Assinatura Cliente", 105, y, null, null, "center"); }
-        else { y+=20; doc.line(60, y, 150, y); doc.text("Assinatura Cliente", 105, y+5, null, null, "center"); }
-        
-        doc.save(`OS_${os.numeroOS}.pdf`);
+            // Aparelho
+            doc.setFillColor(230,230,230); doc.rect(10, y, 190, 8, 'F'); doc.setFont("helvetica", "bold"); doc.text("APARELHO E SERVIÇO", 15, y+6); y+=15;
+            doc.setFont("helvetica", "normal"); doc.text(`Modelo: ${os.aparelho.modelo}`, 15, y); doc.text(`IMEI: ${os.aparelho.imei}`, 100, y); y+=7;
+            doc.text(`Senha: ${os.aparelho.senha||'-'} | Acessórios: ${os.aparelho.acessorios||'-'}`, 15, y); y+=10;
+            
+            doc.setFont("helvetica", "bold"); doc.text("Serviço:", 15, y); doc.setFont("helvetica", "normal"); doc.text(os.servico||'-', 35, y); y+=7;
+            doc.setFont("helvetica", "bold"); doc.text("Defeito:", 15, y); doc.setFont("helvetica", "normal"); doc.text(os.defeitoRelatado||'-', 35, y); y+=15;
+
+            if(os.nomePecaVinculada) {
+                 doc.setFont("helvetica", "bold"); doc.setFontSize(8); doc.text(`Peça Utilizada: ${os.nomePecaVinculada}`, 15, y-3); doc.setFontSize(10);
+            }
+
+            if(os.valor) {
+                doc.setDrawColor(0); doc.setLineWidth(0.5); doc.rect(130, y-15, 60, 20); // Ajustei a posição Y do quadrado
+                doc.setFont("helvetica", "bold"); doc.text("ORÇAMENTO", 160, y-8, null, null, "center");
+                doc.setFontSize(14); doc.text(`R$ ${os.valor}`, 160, y, null, null, "center");
+                doc.setFontSize(10); doc.setFont("helvetica", "normal");
+            }
+
+            doc.setFillColor(230,230,230); doc.rect(10, y, 190, 8, 'F'); doc.setFont("helvetica", "bold"); doc.text("CHECKLIST", 15, y+6); y+=15;
+            const ck = os.checklist; doc.setFontSize(9);
+            doc.text(`Tela: ${ck.tela} | Bat: ${ck.bateria} | Carc: ${ck.carcaca}`, 15, y); y+=7;
+            doc.text(`Bot: ${ck.botoes} | Câm: ${ck.cameras} | Som: ${ck.som}`, 15, y); y+=7;
+            doc.text(`Rede: ${ck.conectividade} | Sens: ${ck.sensores}`, 15, y); y+=15;
+
+            doc.setFontSize(8); doc.setTextColor(100);
+            ["1. Garantia de 90 dias.", "2. Não nos responsabilizamos por dados.", "3. Aparelhos não retirados em 90 dias serão vendidos."].forEach(t=>{doc.text(t,15,y);y+=5;});
+
+            y+=15; doc.setTextColor(0);
+            if(os.assinaturaCliente) { doc.addImage(os.assinaturaCliente, 'PNG', 70, y, 60, 25); y+=25; doc.text("Assinatura Cliente", 105, y, null, null, "center"); }
+            else { y+=20; doc.line(60, y, 150, y); doc.text("Assinatura Cliente", 105, y+5, null, null, "center"); }
+            
+            doc.save(`OS_${os.numeroOS}.pdf`);
+        }, 300); // 300ms de delay para garantir que o QR foi gerado
     }
 
     // --- RECIBOS ---
@@ -314,18 +324,13 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- ESTOQUE (OPÇÃO 4) ---
     window.carregarEstoque = async () => {
         const tb = document.querySelector('#estoque-table tbody');
-        if(!tb) return; // Se não estiver na aba certa
+        if(!tb) return; 
         try {
             const res = await fetch('/api/estoque');
             const lista = await res.json();
             tb.innerHTML = "";
             lista.forEach(item => {
-                tb.innerHTML += `<tr>
-                    <td>${item.nome}</td>
-                    <td><span style="color:${item.quantidade<3?'#f44':'#fff'}">${item.quantidade}</span></td>
-                    <td>R$ ${item.valorCusto}</td>
-                    <td><button class="btn-icon btn-danger" onclick="deletarEstoque('${item._id}')"><i class="fas fa-trash"></i></button></td>
-                </tr>`;
+                tb.innerHTML += `<tr><td>${item.nome}</td><td><span style="color:${item.quantidade<3?'#f44':'#fff'}">${item.quantidade}</span></td><td>R$ ${item.valorCusto}</td><td><button class="btn-icon btn-danger" onclick="deletarEstoque('${item._id}')"><i class="fas fa-trash"></i></button></td></tr>`;
             });
         } catch(e){}
     };
