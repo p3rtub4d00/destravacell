@@ -86,7 +86,7 @@ const OSSchema = new mongoose.Schema({
         carregamento: String,
         sensores: String
     },
-    servico: String, // <--- NOVO CAMPO: Tipo de serviço (Troca de tela, etc)
+    servico: String, // Tipo de serviço
     defeitoRelatado: String,
     valor: String, // Valor do Orçamento Inicial
     status: { type: String, default: 'Aberto' }, // Aberto, Concluido
