@@ -13,22 +13,23 @@ const JWT_SECRET = process.env.JWT_SECRET || 'segredo_nexus_digital_2025_safe_ke
 
 // --- CONEXÃO MONGODB ---
 if (!mongoURI) {
-    console.error("❌ ERRO: A variável MONGO_URI não está definida no Render.");
+    console.error("❌ ERRO CRÍTICO: MONGO_URI não definida! O sistema não vai salvar nada.");
 } else {
     mongoose.connect(mongoURI)
         .then(() => {
-            console.log('✅ MongoDB Conectado com Sucesso!');
+            console.log('✅ MongoDB Conectado! Seus dados estão seguros.');
             criarAdminPadrao();
         })
         .catch(err => console.error('❌ Erro de Conexão MongoDB:', err));
 }
 
+// Aumentei o limite para aceitar assinaturas em alta qualidade
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// --- MODELOS (SCHEMAS) ---
+// --- MODELOS DO BANCO DE DADOS ---
 
 // 1. Usuário Admin
 const UserSchema = new mongoose.Schema({
@@ -37,7 +38,7 @@ const UserSchema = new mongoose.Schema({
 });
 const User = mongoose.model('User', UserSchema);
 
-// 2. Recibo de Compra (Histórico de Aparelhos Comprados)
+// 2. Recibo de Compra (Seu sistema antigo de compras)
 const ReciboSchema = new mongoose.Schema({
     nome: String,
     cpf: String,
@@ -54,7 +55,7 @@ const ReciboSchema = new mongoose.Schema({
 });
 const Recibo = mongoose.model('Recibo', ReciboSchema);
 
-// 3. Financeiro (Fluxo de Caixa)
+// 3. Financeiro (Fluxo de Caixa Unificado)
 const FinanceiroSchema = new mongoose.Schema({
     tipo: { type: String, enum: ['entrada', 'saida'], required: true },
     descricao: { type: String, required: true },
@@ -63,31 +64,15 @@ const FinanceiroSchema = new mongoose.Schema({
 });
 const Financeiro = mongoose.model('Financeiro', FinanceiroSchema);
 
-// 4. ORDEM DE SERVIÇO (OS)
+// 4. ORDEM DE SERVIÇO (Novo Sistema)
 const OSSchema = new mongoose.Schema({
     osNumber: { type: String, unique: true },
-    cliente: { 
-        nome: String, 
-        telefone: String, 
-        cpf: String 
-    },
-    aparelho: { 
-        marca: String, 
-        modelo: String, 
-        imei: String, 
-        senha: String, 
-        acessorios: String 
-    },
+    cliente: { nome: String, telefone: String, cpf: String },
+    aparelho: { marca: String, modelo: String, imei: String, senha: String, acessorios: String },
     checklist: {
-        liga: Boolean, 
-        tela: Boolean, 
-        touch: Boolean, 
-        camera: Boolean, 
-        audio: Boolean, 
-        carga: Boolean, 
-        wifi: Boolean, 
-        biom: Boolean, 
-        obs: String
+        liga: Boolean, tela: Boolean, touch: Boolean, 
+        camera: Boolean, audio: Boolean, carga: Boolean, 
+        wifi: Boolean, biom: Boolean, obs: String
     },
     servico: { 
         defeitoRelatado: String, 
@@ -95,11 +80,8 @@ const OSSchema = new mongoose.Schema({
         status: { type: String, default: 'Aberto' } 
     },
     financeiro: {
-        custoPecas: Number, 
-        maoDeObra: Number, 
-        desconto: Number, 
-        sinal: Number, 
-        total: Number,
+        custoPecas: Number, maoDeObra: Number, 
+        desconto: Number, sinal: Number, total: Number,
         statusPagamento: { type: String, default: 'Pendente' }
     },
     assinaturaCliente: String,
@@ -108,7 +90,7 @@ const OSSchema = new mongoose.Schema({
 });
 const OS = mongoose.model('OrdemServico', OSSchema);
 
-// --- MIDDLEWARES ---
+// --- SEGURANÇA (Middleware) ---
 const authMiddleware = (req, res, next) => {
     const token = req.cookies.token;
     if (!token) return res.status(401).json({ erro: 'Não autorizado' });
@@ -119,9 +101,9 @@ const authMiddleware = (req, res, next) => {
     } catch (e) { res.status(401).json({ erro: 'Token inválido' }); }
 };
 
-// --- ROTAS (API) ---
+// --- ROTAS API ---
 
-// Auth
+// Login
 app.post('/api/login', async (req, res) => {
     const { username, password } = req.body;
     const user = await User.findOne({ username });
@@ -140,7 +122,7 @@ app.post('/api/logout', (req, res) => {
 
 app.get('/api/check-auth', authMiddleware, (req, res) => res.sendStatus(200));
 
-// --- ROTAS RECIBOS (Compra de Aparelhos) ---
+// --- ROTAS: RECIBOS (COMPRA DE APARELHOS) ---
 app.get('/api/recibos', authMiddleware, async (req, res) => {
     try {
         const recibos = await Recibo.find().sort({ dataCriacao: -1 }).limit(100);
@@ -151,32 +133,29 @@ app.get('/api/recibos', authMiddleware, async (req, res) => {
 app.post('/api/recibos', authMiddleware, async (req, res) => {
     try {
         const novo = await Recibo.create(req.body);
-        
-        // LANÇAR NO FINANCEIRO (SAÍDA) AUTOMATICAMENTE
+        // Lógica Automática: Comprou aparelho -> Saiu dinheiro do caixa
         if (novo.valor) {
             await Financeiro.create({
                 tipo: 'saida',
-                descricao: `Compra Aparelho: ${novo.modelo} - ${novo.nome}`,
-                valor: parseFloat(novo.valor.replace(',', '.'))
+                descricao: `Compra: ${novo.modelo} (${novo.nome})`,
+                valor: parseFloat(novo.valor.toString().replace(',', '.'))
             });
         }
-        
         res.json(novo);
-    } catch (e) { res.status(500).json({ erro: 'Erro ao criar recibo' }); }
+    } catch (e) { res.status(500).json({ erro: 'Erro ao salvar recibo' }); }
 });
 
 app.delete('/api/recibos/:id', authMiddleware, async (req, res) => {
     try {
         await Recibo.findByIdAndDelete(req.params.id);
         res.json({ ok: true });
-    } catch (e) { res.status(500).json({ erro: 'Erro ao deletar recibo' }); }
+    } catch (e) { res.status(500).json({ erro: 'Erro ao deletar' }); }
 });
 
-// --- ROTAS FINANCEIRO ---
+// --- ROTAS: FINANCEIRO ---
 app.get('/api/financeiro', authMiddleware, async (req, res) => {
     try {
-        // Busca TUDO para garantir que o saldo esteja certo, ou aumenta o limit
-        const lancamentos = await Financeiro.find().sort({ data: -1 }).limit(500);
+        const lancamentos = await Financeiro.find().sort({ data: -1 }).limit(200);
         res.json(lancamentos);
     } catch (e) { res.status(500).json({ erro: 'Erro ao buscar financeiro' }); }
 });
@@ -185,17 +164,17 @@ app.post('/api/financeiro', authMiddleware, async (req, res) => {
     try {
         const novo = await Financeiro.create(req.body);
         res.json(novo);
-    } catch (e) { res.status(500).json({ erro: 'Erro ao criar financeiro' }); }
+    } catch (e) { res.status(500).json({ erro: 'Erro ao salvar financeiro' }); }
 });
 
 app.delete('/api/financeiro/:id', authMiddleware, async (req, res) => {
     try {
         await Financeiro.findByIdAndDelete(req.params.id);
         res.json({ ok: true });
-    } catch (e) { res.status(500).json({ erro: 'Erro ao deletar financeiro' }); }
+    } catch (e) { res.status(500).json({ erro: 'Erro ao deletar' }); }
 });
 
-// --- ROTAS DE ORDEM DE SERVIÇO (OS) ---
+// --- ROTAS: ORDEM DE SERVIÇO (OS) ---
 app.get('/api/os', authMiddleware, async (req, res) => {
     try {
         const lista = await OS.find().sort({ dataEntrada: -1 });
@@ -210,10 +189,10 @@ app.get('/api/os/:id', async (req, res) => {
 
 app.post('/api/os', authMiddleware, async (req, res) => {
     try {
-        const num = Date.now().toString().slice(-6);
+        const num = Date.now().toString().slice(-6); // Gera numero único curto
         const novaOS = await OS.create({ ...req.body, osNumber: num });
         
-        // Lança SINAL no Financeiro (Entrada)
+        // Se cliente pagou sinal (Entrada), lança no financeiro
         if (req.body.financeiro && req.body.financeiro.sinal > 0) {
             await Financeiro.create({
                 tipo: 'entrada',
@@ -233,20 +212,20 @@ app.put('/api/os/:id', async (req, res) => {
 });
 
 app.delete('/api/os/:id', authMiddleware, async (req, res) => {
-    try { await OS.findByIdAndDelete(req.params.id); res.json({ ok: true }); } 
-    catch (e) { res.status(500).json({ erro: "Erro" }); }
+    try { await OS.findByIdAndDelete(req.params.id); res.json({ ok: true }); }
+    catch (e) { res.status(500).json({ erro: "Erro ao deletar OS" }); }
 });
 
-// --- INICIALIZAÇÃO ---
+// Criar Admin se não existir
 async function criarAdminPadrao() {
     try {
         const adminExiste = await User.findOne({ username: 'admin' });
         if (!adminExiste) {
             const hash = await bcrypt.hash('rafaelRAMOS28', 10);
             await User.create({ username: 'admin', password: hash });
-            console.log('🔐 Usuário ADMIN criado.');
+            console.log('🔐 Usuário ADMIN padrão criado.');
         }
-    } catch (e) { console.error('Erro criar admin', e); }
+    } catch (e) { console.error('Erro admin:', e); }
 }
 
 app.get('*', (req, res) => {
