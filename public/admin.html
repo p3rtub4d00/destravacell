@@ -168,23 +168,27 @@
                 </div>
 
                 <div class="form-group" style="background: #222; padding: 10px; border-radius: 8px; border: 1px solid var(--primary-color); margin-top: 15px;">
-                    <label style="color: var(--primary-color); font-weight: bold;">Valor Orçamento (R$)</label>
+                    <label style="color: var(--primary-color); font-weight: bold;">VALOR DO SERVIÇO (R$)</label>
                     <input type="text" id="os-valor" placeholder="Ex: 150,00" style="font-weight: bold; background: #000; color: #fff;">
                 </div>
 
                 <div class="form-group"><label>Acessórios</label><input type="text" id="os-acessorios"></div>
                 <div class="form-group"><label>Defeito Relatado</label><textarea id="os-defeito" rows="3"></textarea></div>
 
-                <h5 style="color: var(--primary-color); margin-top: 20px;">Checklist</h5>
+                <h5 style="color: var(--primary-color); margin-top: 20px;">Checklist Completo</h5>
                 <div class="checklist-grid">
-                    <div class="check-item"><label>Tela</label><select id="ck-tela"><option value="OK">OK</option><option value="Quebrada">Quebrada</option></select></div>
-                    <div class="check-item"><label>Bateria</label><select id="ck-bateria"><option value="OK">OK</option><option value="Ruim">Ruim</option></select></div>
-                    <div class="check-item"><label>Carcaça</label><select id="ck-carcaca"><option value="OK">OK</option><option value="Marcas">Marcas</option></select></div>
-                    <div class="check-item"><label>Botões</label><select id="ck-botoes"><option value="OK">OK</option><option value="Falha">Falha</option></select></div>
-                    <div class="check-item"><label>Câmeras</label><select id="ck-cameras"><option value="OK">OK</option><option value="Erro">Erro</option></select></div>
-                    <div class="check-item"><label>Som</label><select id="ck-som"><option value="OK">OK</option><option value="Ruim">Ruim</option></select></div>
-                    <div class="check-item"><label>Rede</label><select id="ck-rede"><option value="OK">OK</option><option value="Falha">Falha</option></select></div>
+                    <div class="check-item"><label>Tela/Frontal</label><select id="ck-tela"><option value="OK">OK</option><option value="Quebrada">Quebrada</option><option value="Riscada">Riscada</option></select></div>
+                    <div class="check-item"><label>Bateria</label><select id="ck-bateria"><option value="OK">OK</option><option value="Ruim">Ruim</option><option value="Inchada">Inchada</option></select></div>
+                    <div class="check-item"><label>Conector Carga</label><select id="ck-conector"><option value="OK">OK</option><option value="Ruim">Ruim</option><option value="Não Carrega">Não Carrega</option></select></div>
+                    <div class="check-item"><label>Câmeras</label><select id="ck-cameras"><option value="OK">OK</option><option value="Embaçada">Embaçada</option><option value="Erro">Erro/Preta</option></select></div>
+                    <div class="check-item"><label>FaceID/Biometria</label><select id="ck-biometria"><option value="OK">OK</option><option value="Falha">Falha</option><option value="Não Testado">Não Testado</option></select></div>
+                    <div class="check-item"><label>Som (Alto-falante)</label><select id="ck-som"><option value="OK">OK</option><option value="Estourado">Estourado</option><option value="Mudo">Mudo</option></select></div>
+                    <div class="check-item"><label>Microfone</label><select id="ck-microfone"><option value="OK">OK</option><option value="Ruim">Ruim</option><option value="Mudo">Mudo</option></select></div>
+                    <div class="check-item"><label>Botões</label><select id="ck-botoes"><option value="OK">OK</option><option value="Falha">Falha</option><option value="Duro">Duro</option></select></div>
+                    <div class="check-item"><label>Wi-Fi / Rede</label><select id="ck-rede"><option value="OK">OK</option><option value="Fraco">Fraco</option><option value="Não Conecta">Não Conecta</option></select></div>
+                    <div class="check-item"><label>Carcaça/Tampa</label><select id="ck-carcaca"><option value="OK">OK</option><option value="Marcas">Marcas de Uso</option><option value="Quebrada">Quebrada</option></select></div>
                     <div class="check-item"><label>Sensores</label><select id="ck-sensores"><option value="OK">OK</option><option value="Falha">Falha</option></select></div>
+                    <div class="check-item"><label>Outros</label><input type="text" id="ck-outros" placeholder="Obs..." style="background:transparent; border:none; color:#fff; width:100%;"></div>
                 </div>
                 <button class="btn-generate" onclick="criarOS()">Gerar OS e Assinatura</button>
             </div>
