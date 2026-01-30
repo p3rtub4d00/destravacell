@@ -31,7 +31,7 @@
         .tab-content { display: none; }
         .tab-content.active { display: block; animation: fadeIn 0.3s; }
 
-        /* ESTILOS GERAIS */
+        /* ESTILOS GERAIS DE FORMULÁRIO */
         .form-card { background: #1a1a1a; padding: 25px; border-radius: 15px; border: 1px solid #333; margin-bottom: 30px; }
         .form-group { margin-bottom: 20px; }
         label { display: block; color: #fff; margin-bottom: 8px; font-size: 0.9rem; }
@@ -44,23 +44,51 @@
         .row { display: flex; gap: 15px; flex-wrap: wrap; }
         .col { flex: 1; min-width: 200px; }
 
+        /* NOVOS ESTILOS DE BOTÕES */
+        .btn-generate { 
+            width: 100%; background: var(--primary-color); color: #000; 
+            font-weight: 700; padding: 15px; border: none; border-radius: 12px; 
+            cursor: pointer; margin-top: 30px; font-size: 1.1rem; 
+            text-transform: uppercase; letter-spacing: 1px; transition: 0.3s;
+            box-shadow: 0 4px 15px rgba(0,255,136,0.2);
+        }
+        .btn-generate:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,255,136,0.3); }
+        .btn-generate:active { transform: translateY(0); }
+
+        .btn-secondary {
+            background: #333; color: #fff; border: 1px solid #555;
+            padding: 10px 20px; border-radius: 8px; cursor: pointer; margin-top: 10px;
+        }
+
+        /* Botões de Ação na Tabela (Ícones) */
+        .btn-icon {
+            border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; 
+            transition: 0.2s; margin-right: 5px; font-size: 1rem;
+        }
+        .btn-action { background: #00ff88; color: #000; } /* Verde para Imprimir/PDF */
+        .btn-action:hover { background: #00cc6a; box-shadow: 0 0 8px rgba(0,255,136,0.4); }
+        
+        .btn-danger { background: #ff4444; color: #fff; } /* Vermelho para Excluir */
+        .btn-danger:hover { background: #cc0000; box-shadow: 0 0 8px rgba(255, 68, 68, 0.4); }
+
         /* CHECKLIST ESTILIZADO */
         .checklist-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin-top: 15px; }
         .check-item { background: #111; padding: 10px; border-radius: 8px; border: 1px solid #333; }
         .check-item label { font-size: 0.8rem; color: #aaa; margin-bottom: 5px; }
         .check-item select { padding: 5px; font-size: 0.9rem; height: 35px; }
 
-        .btn-generate { width: 100%; background: var(--primary-color); color: #000; font-weight: 700; padding: 15px; border: none; border-radius: 50px; cursor: pointer; margin-top: 30px; font-size: 1.1rem; text-transform: uppercase; letter-spacing: 1px; }
-        .btn-print { background: #fff; color: #000; font-weight: bold; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; }
-
-        /* OUTROS ESTILOS MANTIDOS */
-        .signature-wrapper { background: #fff; border-radius: 8px; overflow: hidden; margin-top: 10px; }
+        /* ASSINATURA */
+        .signature-wrapper { background: #fff; border-radius: 8px; overflow: hidden; margin-top: 10px; border: 2px dashed #444; }
         canvas { display: block; width: 100%; height: 200px; }
+        
+        /* TABELAS */
         .history-section { margin-top: 40px; border-top: 1px solid #333; padding-top: 20px; }
-        .table-responsive { overflow-x: auto; border-radius: 8px; border: 1px solid #333; }
+        .table-responsive { overflow-x: auto; border-radius: 8px; border: 1px solid #333; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
         table { width: 100%; border-collapse: collapse; color: #ccc; font-size: 0.9rem; background: #1a1a1a; }
-        th { background: #222; color: var(--primary-color); padding: 15px; text-align: left; font-weight: 600; text-transform: uppercase; font-size: 0.8rem; }
+        th { background: #222; color: var(--primary-color); padding: 15px; text-align: left; font-weight: 600; text-transform: uppercase; font-size: 0.8rem; letter-spacing: 0.5px; }
         td { padding: 15px; border-bottom: 1px solid #333; vertical-align: middle; }
+        tr:last-child td { border-bottom: none; }
+        tr:hover { background: #202020; }
         
         /* QR Code Area */
         #qrcode-os-display { background: #fff; padding: 15px; display: inline-block; border-radius: 10px; margin: 15px 0; }
@@ -112,15 +140,28 @@
 
                 <h4 style="color:var(--primary-color); margin-top:25px;">Assinatura do Vendedor</h4>
                 <div class="signature-wrapper"><canvas id="signature-pad"></canvas></div>
-                <button class="btn-generate" style="background:#ff4444; color:#fff; margin-top:10px; padding:10px;" id="clear-pad">Limpar Assinatura</button>
-                <button class="btn-generate" onclick="gerarPDF()">Salvar e Baixar Recibo</button>
+                <button class="btn-secondary" id="clear-pad"><i class="fas fa-eraser"></i> Limpar Assinatura</button>
+                
+                <button class="btn-generate" onclick="gerarPDF()">
+                    <i class="fas fa-file-pdf"></i> Salvar e Baixar PDF
+                </button>
             </div>
-            <div id="qrcode-container" style="display:none;"></div>
             
             <div class="history-section">
-                <h3>Histórico de Vendas</h3>
+                <h3>Histórico de Vendas (Recibos)</h3>
                 <div class="table-responsive">
-                    <table id="history-table"><tbody></tbody></table>
+                    <table id="history-table">
+                        <thead>
+                            <tr>
+                                <th>Data</th>
+                                <th>Cliente</th>
+                                <th>Modelo</th>
+                                <th>Valor</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
                 </div>
             </div>
         </div>
@@ -163,15 +204,19 @@
                     <div class="check-item"><label>Sensores</label><select id="ck-sensores"><option value="OK">OK</option><option value="Falha">Falha Prox/FaceID</option></select></div>
                 </div>
 
-                <button class="btn-generate" onclick="criarOS()">Gerar OS e QR Code Assinatura</button>
+                <button class="btn-generate" onclick="criarOS()">
+                    <i class="fas fa-qrcode"></i> Gerar OS e Assinatura
+                </button>
             </div>
 
-            <div id="area-assinatura-os" style="text-align: center; display: none; background: #1a1a1a; padding: 20px; border-radius: 15px; border: 1px solid var(--primary-color);">
+            <div id="area-assinatura-os" style="text-align: center; display: none; background: #1a1a1a; padding: 20px; border-radius: 15px; border: 1px solid var(--primary-color); margin-bottom: 30px;">
                 <h3 style="color: #fff; margin-bottom: 10px;">Aguardando Assinatura do Cliente...</h3>
                 <p style="color: #ccc; font-size: 0.9rem;">Peça para o cliente escanear este código com a câmera do celular:</p>
                 <div id="qrcode-os-display"></div>
                 <br>
-                <button class="btn-generate" style="max-width: 300px; margin: 20px auto;" onclick="verificarAssinaturaEImprimir()">JÁ ASSINOU? ATUALIZAR E IMPRIMIR</button>
+                <button class="btn-generate" style="max-width: 350px; margin: 20px auto; background: #fff; color: #000;" onclick="verificarAssinaturaEImprimir()">
+                    <i class="fas fa-check-circle"></i> JÁ ASSINOU? ATUALIZAR
+                </button>
             </div>
 
             <div class="history-section">
@@ -236,14 +281,11 @@
 
     <script src="admin-script.js"></script>
     <script>
-        // Função simples para abas
         function openTab(tabId) {
             document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
             document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
             document.getElementById(tabId).classList.add('active');
             event.currentTarget.classList.add('active');
-            
-            // Carregar dados específicos ao abrir aba
             if(tabId === 'tab-os') window.carregarOSHistory();
             if(tabId === 'tab-financeiro') window.carregarFinanceiro();
         }
